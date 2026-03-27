@@ -1,0 +1,199 @@
+# Canvas Aktivitetskolonne
+
+Chrome-utvidelse som legger til en diskret aktivitetskolonne i Canvas vurderingsoversikt. Læreren får et øyeblikksbilde av elevenes innlogging, innleveringsstatus og fremdrift mot leksjonsfrister — uten å forlate oversikten.
+
+---
+
+## Installasjon
+
+1. Last ned og pakk ut mappen
+2. Åpne Chrome og gå til `chrome://extensions`
+3. Slå på **Utviklermodus** (øverst til høyre)
+4. Klikk **Last inn upakket** og velg mappen `canvas-aktivitet`
+5. Gå til vurderingsoversikten i et Canvas-kurs — kolonnen vises automatisk
+
+---
+
+## Slik leser du kolonnen
+
+Kolonnen svever på høyre kant av navnekolonnen slik at Merknader-kolonnen alltid er synlig.
+
+```
+  ◉  ✓  [——●——]
+  │   │      │
+  │   │      └─ Fremdriftsindikator (tidslinje)
+  │   └──────── Innlevering (tegn)
+  └──────────── Innlogging (ring)
+```
+
+### Symbol 1 — Ring (innlogging)
+
+| Symbol | Betyr |
+|--------|-------|
+| Tykk, mørk ring | Innlogget siste 1–3 dager |
+| Medium ring | Innlogget for 4–10 dager siden |
+| Tynn ring | Innlogget for 11–21 dager siden |
+| Veldig tynn, grå ring | Ikke sett på over 21 dager |
+
+### Symbol 2 — Tegn (innlevering)
+
+| Symbol | Betyr |
+|--------|-------|
+| ✓ grønn | Levert innen 7 dager |
+| – grå | Levert for 8–21 dager siden |
+| ✗ rød | Ikke levert på lenge, eller aldri |
+
+### Symbol 3 — Fremdriftsindikator (tidslinje)
+
+Den loddrette streken er nullpunktet. Prikken viser leksjonsfremdrift.
+
+```
+  [●——|————]   Etter skjema — trenger oppfølging
+  [————|————]   I rute
+  [————|———●]   Foran skjema
+  [————|--○-]   Ingen fristdata (stiplet)
+```
+
+| Prikkfarge | Betyr |
+|------------|-------|
+| Mørk grønn | Foran skjema |
+| Grønn | I rute |
+| Oransje | Litt etter |
+| Rød | Klart etter skjema |
+
+Hover over en celle for nøyaktige tall:
+```
+Innlogget: 2 dager siden
+Innlevert: 5 dager siden
+8 av 15 leksjoner Fullført · Terskel: 50%
+2 innleveringer venter vurdering
+```
+
+**"Fullført"** teller kun leksjoner hvor lærer har gitt tilbakemelding og satt status til Fullført. Innleveringer som er levert men ikke vurdert ennå vises på egen linje som «venter vurdering».
+
+### Fargemerking av rader
+
+Når fargemerking er slått på får Canvas-radene en dempet trafikklys-farge basert på leksjonsfremdrift:
+
+| Farge | Betyr |
+|-------|-------|
+| Svakt grønn | 2 leksjoner etter skjema |
+| Svakt gul | 3 leksjoner etter skjema |
+| Svakt rød | 4+ leksjoner etter skjema, eller har frister men ikke levert |
+
+1 leksjon etter regnes som innafor og gir ingen fargemerking. Fargene er bevisst dempet (lav opacity) for å ikke dominere Canvas sitt eget grensesnitt.
+
+---
+
+## Hvordan fremdriften beregnes
+
+Oppgavene grupperes per leksjon basert på leksjonsnummer i oppgavetittelen (f.eks. "L 23 – Innleveringsoppgave").
+
+**Per leksjon:**
+```
+Fullføring = leksjoner med Fullført-status / totalt antall leksjoner
+```
+
+- Leksjon **Fullført** (≥ terskel med lærerens godkjenning): teller positivt
+- Leksjon **levert men ikke vurdert**: teller ikke som Fullført — vises som «venter vurdering»
+- Leksjon **ikke godkjent** (< terskel): trekker 1 fra netto delta
+- Leksjon **ikke påbegynt** (ingen levering, ingen mangler): ignoreres
+
+**Netto fremdrift:**
+```
+delta = (leksjoner foran skjema)
+      - (antall leksjoner under terskel)
+```
+
+Utvidelsen bruker Canvas sin egen `missing`-status. Oppgaver som ikke er levert men heller ikke markert som manglende teller ikke negativt.
+
+**Frivillige oppgaver** (uten frist) og **selvrettende quizer** (`online_quiz`) telles ikke med som standard, men kan slås på i innstillingene.
+
+---
+
+## Innstillinger
+
+Klikk utvidelsesikonet i Chrome-verktøylinjen for å åpne innstillingspanelet.
+
+### Vis/skjul kolonnen
+Togglen øverst skjuler kolonnen raskt når du trenger mer plass.
+
+### Innlogging (ring)
+- Tykk ring: innlogget innen X dager (standard: 3)
+- Medium ring: innlogget innen X dager (standard: 10)
+
+### Innlevering (tegn)
+- ✓ vises når siste innlevering er innen X dager (standard: 7)
+- – vises når siste innlevering er innen X dager (standard: 21)
+
+### Fremdriftsindikator (tidslinje)
+
+**Leksjon Fullført når ≥ X % er godkjent av lærer** (standard: 50%)
+Terskel for når en leksjon regnes som Fullført.
+
+**Frivillige oppgaver teller** (standard: av)
+Oppgaver uten oppsatt frist. Frivillige oppgaver som ikke er levert teller aldri negativt.
+
+**Selvrettende quizer teller** (standard: av)
+Oppgaver av typen `online_quiz` i Canvas.
+
+### Fargemerking av rader
+Slår av/på dempet trafikklys-farging av Canvas-rader basert på leksjonsfremdrift (grønn → gul → rød).
+
+### Cache og oppdatering
+Viser når data sist ble hentet. Klikk **⟳ Oppdater nå** for å tvinge en ny henting fra Canvas API — nyttig hvis en elev nettopp har levert og du vil se det med en gang.
+
+Data caches lokalt i 1 time. Ved neste sideinnlasting innen 1 time vises ikonene umiddelbart uten ventetid.
+
+---
+
+## Personvern og GDPR
+
+Elevdata forlater aldri Canvas sine egne servere.
+
+```
+Canvas sine servere  →  Din nettleser  →  Vises på skjermen  →  Ingenting mer
+```
+
+- Utvidelsen henter data fra Canvas sitt eget API med din eksisterende innloggingssesjon
+- Elevdata lagres kortvarig i `chrome.storage.local` kun for caching (maks 1 time), og slettes ved "Oppdater nå"
+- Ingen elevdata sendes til eksterne servere eller tredjepart
+- Det eneste som synkroniseres mellom maskiner (`chrome.storage.sync`) er dine egne innstillinger — kun tall og brytervalg, ingen personopplysninger
+
+Som lærer er du allerede autorisert i Canvas til å se denne informasjonen. Utvidelsen gjør det samme som å klikke seg rundt i Canvas manuelt, bare raskere og mer oversiktlig.
+
+Utvidelsen inneholder ingen sporings- eller analysekode.
+
+---
+
+## Teknisk
+
+- Manifest V3
+- Aktiveres kun på `*.instructure.com/courses/*/gradebook*`
+- Bruker Canvas REST API:
+  - `enrollments` med `last_activity_at` — innloggingsdata
+  - `students/submissions` med `missing`-flagg — innleveringsdata
+  - `assignments` med `due_at` og `submission_types` — frist- og oppgavetype-data
+  - `modules` med `items` — kun modul-tilknyttede oppgaver telles
+- Data caches i `chrome.storage.local` med 1-times utløp per kurs
+- Injiserer et flytende overlay-panel festet til Canvas sin SlickGrid-viewport
+
+---
+
+## Kjente begrensninger
+
+- Oppgavetitler må inneholde leksjonsnummer på formatet "L 23" for at leksjonsgruppering skal fungere
+- Canvas sin gradebook bruker virtuell scrolling (SlickGrid). DOM-strukturen kan variere mellom Canvas-versjoner. Ta kontakt hvis kolonnen ikke vises
+- Utvidelsen er testet på `*.instructure.com`. Andre domener krever endring av `host_permissions` i `manifest.json`
+
+---
+
+## Del av en serie
+
+Denne utvidelsen er én av flere Canvas-utvidelser utviklet for intern bruk ved en nettskole med elever i over 100 land. Felles for alle: ingen elevdata forlater Canvas, og de er laget for å være så lite påtrengende som mulig i det daglige arbeidet.
+
+---
+
+## Lisens
+
+MIT

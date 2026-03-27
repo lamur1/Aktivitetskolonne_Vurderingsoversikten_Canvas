@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: LatoWeb, Lato, -apple-system, sans-serif;
+      font-size: 13px;
+      color: #2c2c2a;
+      background: #fff;
+      width: 240px;
+      padding: 14px 16px 16px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 0.5px solid #d3d1c7;
+    }
+    .header-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #2c2c2a;
+      letter-spacing: 0.01em;
+    }
+    .toggle-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .toggle-label {
+      font-size: 12px;
+      color: #5f5e5a;
+    }
+    /* Toggle switch */
+    .switch { position: relative; display: inline-block; width: 34px; height: 20px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #d3d1c7;
+      border-radius: 20px;
+      transition: .2s;
+    }
+    .slider:before {
+      position: absolute; content: "";
+      height: 14px; width: 14px;
+      left: 3px; bottom: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: .2s;
+    }
+    input:checked + .slider { background: #3b6d11; }
+    input:checked + .slider:before { transform: translateX(14px); }
+
+    .section {
+      margin-top: 12px;
+    }
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #888780;
+      margin-bottom: 8px;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .row-label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: #444441;
+      font-size: 12px;
+    }
+    .ring {
+      display: inline-block;
+      width: 11px; height: 11px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .ring-4 { border: 3.5px solid #3b6d11; }
+    .ring-3 { border: 2.5px solid #639922; }
+    .ring-2 { border: 1.5px solid #97c459; }
+    .ring-1 { border: 1px   solid #b4b2a9; }
+    .mark { font-weight: 600; font-size: 13px; }
+    .mark-v    { color: #3b6d11; }
+    .mark-dash { color: #888780; }
+    .mark-x    { color: #a32d2d; }
+    .row-right {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      color: #5f5e5a;
+      font-size: 12px;
+    }
+    input[type="number"] {
+      width: 52px;
+      padding: 3px 6px;
+      border: 0.5px solid #d3d1c7;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #2c2c2a;
+      text-align: center;
+      outline: none;
+      background: #fafaf8;
+    }
+    input[type="number"]:focus { border-color: #3b6d11; }
+    input[type="number"]:disabled { opacity: 0.4; }
+    .divider {
+      height: 0.5px;
+      background: #e8e8e4;
+      margin: 10px 0;
+    }
+    .disabled-overlay { opacity: 0.4; pointer-events: none; }
+    .footer {
+      margin-top: 14px;
+      font-size: 10px;
+      color: #b4b2a9;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="header-title">Aktivitetskolonne</span>
+    <div class="toggle-wrap">
+      <span class="toggle-label" id="toggle-text">Vis</span>
+      <label class="switch">
+        <input type="checkbox" id="toggle-visible" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <div id="settings-body">
+    <!-- Innlogging -->
+    <div class="section">
+      <div class="section-title">Innlogging (ring)</div>
+      <div class="row">
+        <span class="row-label"><span class="ring ring-4"></span> Tykk – aktiv</span>
+        <div class="row-right">≤ <input type="number" id="loginGreen" min="1" max="30" value="3"> dager</div>
+      </div>
+      <div class="row">
+        <span class="row-label"><span class="ring ring-3"></span> Medium</span>
+        <div class="row-right">≤ <input type="number" id="loginYellow" min="1" max="60" value="10"> dager</div>
+      </div>
+      <div class="row">
+        <span class="row-label"><span class="ring ring-2"></span> Tynn</span>
+        <div class="row-right" style="color:#b4b2a9; font-size:11px;">11–21 dager</div>
+      </div>
+      <div class="row">
+        <span class="row-label"><span class="ring ring-1"></span> Veldig tynn</span>
+        <div class="row-right" style="color:#b4b2a9; font-size:11px;">&gt; 21 dager</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Innlevering -->
+    <div class="section">
+      <div class="section-title">Innlevering (tegn)</div>
+      <div class="row">
+        <span class="row-label"><span class="mark mark-v">✓</span> Levert nylig</span>
+        <div class="row-right">≤ <input type="number" id="submissionGreen" min="1" max="30" value="7"> dager</div>
+      </div>
+      <div class="row">
+        <span class="row-label"><span class="mark mark-dash">–</span> En stund siden</span>
+        <div class="row-right">≤ <input type="number" id="submissionYellow" min="1" max="90" value="21"> dager</div>
+      </div>
+      <div class="row">
+        <span class="row-label"><span class="mark mark-x">✗</span> Lenge siden / aldri</span>
+        <div class="row-right" style="color:#b4b2a9; font-size:11px;">over grensen</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Fremdriftsindikator -->
+    <div class="section">
+      <div class="section-title">Fremdriftsindikator (tidslinje)</div>
+      <div class="row">
+        <span class="row-label" style="flex:1;">Leksjoner i semesteret</span>
+        <div class="row-right"><input type="number" id="totalLessons" min="1" max="50" value="15"> stk</div>
+      </div>
+      <div class="row" style="margin-top:4px;">
+        <span class="row-label" style="flex:1;">Leksjon godkjent når</span>
+        <div class="row-right">≥ <input type="number" id="lessonThreshold" min="1" max="100" value="50"> % levert</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Fargemerking -->
+    <div class="section">
+      <div class="section-title">Fargemerking</div>
+      <div class="row">
+        <span class="row-label" style="flex:1;">Trafikklys i aktivitetscellen</span>
+        <label class="switch" style="margin-left:auto;">
+          <input type="checkbox" id="toggle-highlight" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div style="font-size:11px; color:#888780; margin-top:4px; line-height:1.6;">
+        2 leksjoner etter → lys grønn<br>
+        3 leksjoner etter → lys gul<br>
+        4+ leksjoner etter / ikke levert → lys rød
+      </div>
+    </div>
+  </div>
+
+  <div style="border-top:0.5px solid #e8e8e4; margin-top:12px; padding:10px 0 4px; font-size:11px; color:#888780; text-align:center;">
+    <span id="cache-status">Sjekker…</span><br>
+    <button id="btn-refresh" style="margin-top:6px; font-size:11px; padding:3px 12px; cursor:pointer; border:0.5px solid #d3d1c7; border-radius:4px; background:#fafaf8; color:#444441;">⟳ Oppdater nå</button>
+  </div>
+
+  <div class="footer">Canvas Aktivitetskolonne v1.0</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
