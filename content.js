@@ -9,7 +9,8 @@
     submissionYellow: 21,
     lessonThreshold: 50,
     totalLessons: 15,
-    rowHighlight: true
+    rowHighlight: false,
+    gradingMode: 'teacher'
   };
 
   let cfg = { ...DEFAULTS };
@@ -20,6 +21,10 @@
   let attachedViewport = null;
   let isUpdating = false;
   let sortActive  = false;
+  let cellCache      = new Map(); // sid -> cak-cell element
+  let headerCellEl   = null;
+  let loadingBarEl   = null;
+  let isLoading      = false;
 
   const COL_W = 110;
 
@@ -30,6 +35,7 @@
 
   chrome.storage.onChanged.addListener((changes) => {
     for (const key in changes) cfg[key] = changes[key].newValue;
+    invalidateCache();
     updateOverlay();
   });
 
@@ -51,8 +57,12 @@
     createTooltip();
     createOverlay();
     await fetchData();
+    invalidateCache();
     updateOverlay();
     observeChanges();
+    // Canvas fortsetter å justere grid etter init — forsinkede re-renders fanger dette
+    setTimeout(updateOverlay, 1500);
+    setTimeout(updateOverlay, 4000);
   }
 
   // ─── CSS ──────────────────────────────────────────────────────────────────
@@ -136,6 +146,29 @@
       .cak-v    { color: #3b6d11; }
       .cak-dash { color: #888780; }
       .cak-x    { color: #a32d2d; }
+      .cak-loading-bar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        z-index: 10;
+        overflow: hidden;
+        border-radius: 1px;
+      }
+      .cak-loading-bar::after {
+        content: '';
+        position: absolute;
+        left: -60%;
+        width: 60%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, #3b6d11, #639922, transparent);
+        animation: cak-sweep 1.4s ease-in-out infinite;
+      }
+      @keyframes cak-sweep {
+        0%   { left: -60%; }
+        100% { left: 100%; }
+      }
       #cak-tooltip {
         position: fixed;
         background: #fff;
@@ -216,131 +249,34 @@
     }
 
     try {
-      // Hent enrollments, submissions, assignments og moduler parallelt
-      const [enrollments, submissions, assignments, modules] = await Promise.all([
+      isLoading = true;
+
+      // Fase 1: rask data — vis ringer med en gang
+      const [enrollments, assignments, modules] = await Promise.all([
         paginate(`/api/v1/courses/${courseId}/enrollments` +
           `?type[]=StudentEnrollment&include[]=last_activity_at&per_page=100`),
-        paginate(`/api/v1/courses/${courseId}/students/submissions` +
-          `?student_ids[]=all&per_page=100`),
         paginate(`/api/v1/courses/${courseId}/assignments?per_page=100`),
         paginate(`/api/v1/courses/${courseId}/modules?include[]=items&per_page=100`)
       ]);
 
-      // Bygg sett med assignment-IDer som faktisk ligger i moduler
-      const moduleAssignmentIds = new Set();
-      modules.forEach(mod => {
-        (mod.items || []).forEach(item => {
-          if (item.type === 'Assignment' || item.type === 'Quiz') {
-            moduleAssignmentIds.add(String(item.content_id));
-          }
-        });
-      });
-
-      // Bygg oppslag: kun assignments som er i moduler
-      const assignmentMap = {};
-      assignments.forEach(a => {
-        if (moduleAssignmentIds.has(String(a.id))) {
-          assignmentMap[a.id] = a;
-        }
-      });
-
-      const hasAnyDeadlines = Object.values(assignmentMap).some(a => a.due_at);
-
-      // Innloggingsaktivitet
       enrollments.forEach((e) => {
         const sid = String(e.user_id);
         if (!studentData[sid]) studentData[sid] = {};
         studentData[sid].lastActivity = e.last_activity_at
           ? new Date(e.last_activity_at) : null;
       });
+      invalidateCache();
+      updateOverlay(); // Vis ringer umiddelbart — indikator vises i hodet
 
-      // Grupper submissions per elev
-      const byStudent = {};
-      submissions.forEach((s) => {
-        const sid = String(s.user_id);
-        if (!byStudent[sid]) byStudent[sid] = [];
-        byStudent[sid].push(s);
-      });
+      // Fase 2: innleveringer (tung) — fullfør datagrunnlaget
+      const submissions = await paginate(`/api/v1/courses/${courseId}/students/submissions` +
+        `?student_ids[]=all&per_page=100`);
 
-      Object.entries(byStudent).forEach(([sid, subs]) => {
-        if (!studentData[sid]) studentData[sid] = {};
+      processStudentData(enrollments, submissions, assignments, modules);
+      isLoading = false;
+      invalidateCache();
+      updateOverlay();
 
-        // Siste innlevering
-        const submitted = subs.filter(s => s.submitted_at);
-        if (submitted.length) {
-          const latest = submitted.reduce((a, b) =>
-            new Date(a.submitted_at) > new Date(b.submitted_at) ? a : b);
-          studentData[sid].lastSubmission = new Date(latest.submitted_at);
-        }
-
-        // ── Leksjonsbasert fremdrift (kun modul-oppgaver) ─────────────────
-        const lessons = {};
-        Object.values(assignmentMap).forEach((asgn) => {
-          if (!asgn.due_at) return; // frivillige (ingen frist) teller aldri
-
-          const m      = (asgn.name || '').match(/L\s*(\d+)/i);
-          const lesson = m ? m[1] : '__ukjent__';
-          if (!lessons[lesson]) lessons[lesson] = { total: 0, delivered: 0, missing: 0, ahead: 0, fullfort: 0, venter: 0 };
-          lessons[lesson].total++;
-
-          const sub = subs.find(s => String(s.assignment_id) === String(asgn.id));
-          const now = Date.now();
-          const due = new Date(asgn.due_at);
-
-          if (sub && sub.submitted_at) {
-            lessons[lesson].delivered++;
-            const isFullfort = !!(
-              sub.workflow_state === 'graded' ||
-              sub.workflow_state === 'complete' ||
-              sub.graded_at
-            );
-            if (isFullfort) lessons[lesson].fullfort++;
-            else lessons[lesson].venter++;
-            if (due > now) lessons[lesson].ahead++;
-          } else if (sub && sub.missing) {
-            lessons[lesson].missing++;
-          }
-        });
-
-        let netDelta     = 0;
-        let hasAnyLesson = false;
-        let godkjent     = 0;
-        let venterVurdering = 0;
-        let totalt       = 0;
-        const threshold  = (cfg.lessonThreshold || 50) / 100;
-
-        Object.entries(lessons).forEach(([key, l]) => {
-          if (l.total === 0) return;
-          if (l.delivered === 0 && l.missing === 0) return;
-          if (key === '__ukjent__') return;
-          hasAnyLesson = true;
-          totalt++;
-          const completion = l.delivered / l.total;
-          const completionFullfort = l.fullfort / l.total;
-          if (completionFullfort >= threshold) {
-            godkjent++;
-          }
-          venterVurdering += l.venter || 0;
-          if (completion >= threshold) {
-            if (l.ahead > 0) netDelta += 1;
-          } else {
-            netDelta -= 1;
-          }
-        });
-
-        if (hasAnyLesson) {
-          studentData[sid].deadlineDelta  = netDelta;
-          studentData[sid].deadlineCount  = totalt;
-          studentData[sid].godkjent       = godkjent;
-          studentData[sid].venterVurdering = venterVurdering;
-          studentData[sid].totalt         = cfg.totalLessons || 15;
-        } else if (hasAnyDeadlines) {
-          studentData[sid].deadlineDelta = null;
-          studentData[sid].hasDeadlines  = true;
-        }
-      });
-
-      // Lagre i lokal cache med tidsstempel
       const courseId2 = getCourseId();
       if (courseId2) {
         chrome.storage.local.set({
@@ -350,8 +286,142 @@
       updateCacheStatus(new Date());
 
     } catch (err) {
+      isLoading = false;
       console.warn('[Canvas Aktivitetskolonne] Feil ved henting av data:', err);
     }
+  }
+
+  function processStudentData(enrollments, submissions, assignments, modules) {
+    const moduleAssignmentIds = new Set();
+    modules.forEach(mod => {
+      (mod.items || []).forEach(item => {
+        if (item.type === 'Assignment' || item.type === 'Quiz') {
+          moduleAssignmentIds.add(String(item.content_id));
+        }
+      });
+    });
+
+    const assignmentMap = {};
+    assignments.forEach(a => {
+      if (moduleAssignmentIds.has(String(a.id))) {
+        assignmentMap[a.id] = a;
+      }
+    });
+
+    const hasAnyDeadlines = Object.values(assignmentMap).some(a => a.due_at);
+
+    enrollments.forEach((e) => {
+      const sid = String(e.user_id);
+      if (!studentData[sid]) studentData[sid] = {};
+      studentData[sid].lastActivity = e.last_activity_at
+        ? new Date(e.last_activity_at) : null;
+    });
+
+    const byStudent = {};
+    submissions.forEach((s) => {
+      const sid = String(s.user_id);
+      if (!byStudent[sid]) byStudent[sid] = [];
+      byStudent[sid].push(s);
+    });
+
+    Object.entries(byStudent).forEach(([sid, subs]) => {
+      if (!studentData[sid]) studentData[sid] = {};
+
+      // Siste innlevering — graded_at som fallback for LTI (New Quizzes)
+      const submitted = subs.filter(s => s.submitted_at || s.graded_at);
+      if (submitted.length) {
+        const latest = submitted.reduce((a, b) => {
+          const da = new Date(a.submitted_at || a.graded_at);
+          const db = new Date(b.submitted_at || b.graded_at);
+          return da > db ? a : b;
+        });
+        studentData[sid].lastSubmission = new Date(latest.submitted_at || latest.graded_at);
+      }
+
+      const lessons = {};
+      Object.values(assignmentMap).forEach((asgn) => {
+        if (!asgn.due_at) return;
+
+        const m      = (asgn.name || '').match(/L\s*(\d+)/i);
+        const lesson = m ? m[1] : '__ukjent__';
+        if (!lessons[lesson]) lessons[lesson] = { total: 0, delivered: 0, missing: 0, ahead: 0, fullfort: 0, venter: 0, pastDue: 0 };
+        lessons[lesson].total++;
+
+        const sub = subs.find(s => String(s.assignment_id) === String(asgn.id));
+        const now = Date.now();
+        const due = new Date(asgn.due_at);
+
+        if (due <= now) lessons[lesson].pastDue++;
+
+        if (sub && (sub.submitted_at || sub.graded_at)) {
+          lessons[lesson].delivered++;
+          const isGraded = !!(
+            sub.workflow_state === 'graded' ||
+            sub.workflow_state === 'complete' ||
+            sub.graded_at
+          );
+          const graderId = sub.grader_id;
+          const isFullfort = isGraded && (
+            cfg.gradingMode === 'both'  ? true :
+            cfg.gradingMode === 'auto'  ? Number(graderId) < 0 :
+            /* teacher (default) */       Number(graderId) > 0
+          );
+          if (isFullfort) lessons[lesson].fullfort++;
+          if (!isGraded)  lessons[lesson].venter++;
+          if (due > now)  lessons[lesson].ahead++;
+        } else if (sub && sub.missing) {
+          lessons[lesson].missing++;
+        }
+      });
+
+      let netDelta     = 0;
+      let hasAnyLesson = false;
+      let godkjent     = 0;
+      let venterVurdering = 0;
+      let totalt       = 0;
+      let leksjonerMedPassertFrist = 0;
+      let godkjentAvPasserte = 0;
+      const threshold  = (cfg.lessonThreshold || 50) / 100;
+
+      Object.entries(lessons).forEach(([key, l]) => {
+        if (l.total === 0) return;
+        if (key === '__ukjent__') return;
+        const completionFullfort = l.fullfort / l.total;
+
+        if (l.pastDue > 0) {
+          leksjonerMedPassertFrist++;
+          if (completionFullfort >= threshold) godkjentAvPasserte++;
+        }
+
+        if (l.delivered === 0 && l.missing === 0) return;
+        hasAnyLesson = true;
+        totalt++;
+        const completion = l.delivered / l.total;
+        if (completionFullfort >= threshold) godkjent++;
+        venterVurdering += l.venter || 0;
+        if (completion >= threshold) {
+          if (l.ahead > 0) netDelta += 1;
+        } else {
+          netDelta -= 1;
+        }
+      });
+
+      const leksjonerEtter = leksjonerMedPassertFrist > 0
+        ? Math.max(0, leksjonerMedPassertFrist - godkjentAvPasserte)
+        : null;
+
+      if (hasAnyLesson) {
+        studentData[sid].deadlineDelta   = netDelta;
+        studentData[sid].deadlineCount   = totalt;
+        studentData[sid].godkjent        = godkjent;
+        studentData[sid].leksjonerEtter  = leksjonerEtter;
+        studentData[sid].venterVurdering = venterVurdering;
+        studentData[sid].totalt          = cfg.totalLessons || 15;
+      } else if (hasAnyDeadlines) {
+        studentData[sid].deadlineDelta = null;
+        studentData[sid].hasDeadlines  = true;
+      }
+    });
   }
 
   async function paginate(url) {
@@ -368,165 +438,204 @@
     return results;
   }
 
-  // ─── Tegn overlay ─────────────────────────────────────────────────────────
+  // ─── Cache-invalidering ───────────────────────────────────────────────────
+  function invalidateCache() {
+    for (const cell of cellCache.values()) cell.remove();
+    cellCache.clear();
+    if (headerCellEl) { headerCellEl.remove(); headerCellEl = null; }
+  }
+
+  // ─── Tegn overlay (smart diff — gjenbruker eksisterende celler) ───────────
   function updateOverlay() {
     if (!overlayEl || isUpdating) return;
     isUpdating = true;
-    overlayEl.innerHTML = '';
 
-    try {
-      if (!cfg.visible) return;
+    requestAnimationFrame(() => {
+      try {
+        if (!cfg.visible) {
+          overlayEl.style.display = 'none';
+          document.querySelectorAll('.slick-row').forEach(row => {
+            const firstCell = row.querySelector('.slick-cell');
+            if (firstCell) firstCell.style.backgroundColor = '';
+          });
+          return;
+        }
+        overlayEl.style.display = '';
 
-      const frozenCanvas = findFrozenCanvas();
-      if (!frozenCanvas) { setTimeout(updateOverlay, 800); return; }
+        const frozenCanvas = findFrozenCanvas();
+        if (!frozenCanvas) { setTimeout(updateOverlay, 800); return; }
 
-      const rows = frozenCanvas.querySelectorAll('.slick-row');
-      if (!rows.length) { setTimeout(updateOverlay, 500); return; }
+        const rows = frozenCanvas.querySelectorAll('.slick-row');
+        if (!rows.length) { setTimeout(updateOverlay, 500); return; }
 
-      attachOverlayToViewport(frozenCanvas);
+        attachOverlayToViewport(frozenCanvas);
 
-      const firstCell = rows[0].querySelector('.slick-cell');
-      if (!firstCell) return;
-      const colWidth  = firstCell.offsetWidth;
-      const rowHeight = rows[0].offsetHeight || 35;
+        const firstCell = rows[0].querySelector('.slick-cell');
+        if (!firstCell) return;
+        const colWidth  = firstCell.offsetWidth;
+        const rowHeight = rows[0].offsetHeight || 35;
 
-      if (!tooltipFontSize) {
-        const sampleNameEl =
-          rows[0].querySelector('a[href*="/users/"]') ||
-          rows[0].querySelector('a[href*="/grades/"]') ||
-          rows[0].querySelector('.slick-cell') ||
-          null;
-        const cs = sampleNameEl ? getComputedStyle(sampleNameEl) : null;
-        tooltipFontSize = cs && cs.fontSize ? cs.fontSize : null;
-      }
-
-      // Høyde: finn laveste faktiske rad-posisjon
-      let maxBottom = 0;
-      rows.forEach(r => {
-        const top = parseInt(r.style.top, 10) || 0;
-        const h   = r.offsetHeight || rowHeight;
-        if (top + h > maxBottom) maxBottom = top + h;
-      });
-      overlayEl.style.left   = (colWidth - COL_W - 10) + 'px';
-      overlayEl.style.width  = COL_W + 'px';
-      overlayEl.style.height = maxBottom + 'px';
-
-      // Header
-      const header = findFrozenHeader();
-      if (header) {
-        const viewport = frozenCanvas.parentElement;
-        const vRect    = viewport.getBoundingClientRect();
-        const hRect    = header.getBoundingClientRect();
-        const relTop   = hRect.top - vRect.top + viewport.scrollTop;
-        const hCell    = document.createElement('div');
-        hCell.className   = 'cak-col-header';
-        hCell.style.top    = relTop + 'px';
-        hCell.style.height = hRect.height + 'px';
-        hCell.style.cursor = 'pointer';
-        hCell.style.pointerEvents = 'all';
-        hCell.innerHTML = sortActive
-          ? 'Prioritet <span style="font-size:10px;margin-left:2px;">↑</span>'
-          : 'Aktivitet';
-        hCell.title = sortActive
-          ? 'Klikk for å tilbakestille sortering'
-          : 'Klikk for å sortere etter oppfølgingsbehov';
-        hCell.addEventListener('click', toggleSort);
-        overlayEl.appendChild(hCell);
-      }
-
-      // Bygg liste over synlige rader med posisjon og student-ID
-      const rowItems = [];
-      rows.forEach((row) => {
-        const sid    = extractStudentId(row);
-        const rowTop = parseInt(row.style.top, 10) || 0;
-        rowItems.push({ sid, rowTop, row });
-      });
-
-      // Hvis sortering er aktiv: sorter elevene etter prioritetspoeng
-      // men behold Canvas sine opprinnelige top-posisjoner som "slots"
-      let displayOrder = [...rowItems];
-      if (sortActive) {
-        const slots = rowItems.map(r => r.rowTop).sort((a, b) => a - b);
-        const sorted = [...rowItems].sort((a, b) => {
-          const sa = a.sid ? priorityScore(a.sid) : 99999;
-          const sb = b.sid ? priorityScore(b.sid) : 99999;
-          return sb - sa;
-        });
-        displayOrder = sorted.map((item, i) => ({
-          ...item,
-          rowTop: slots[i]
-        }));
-      }
-
-      // Tegn celler
-      displayOrder.forEach(({ sid, rowTop, row }) => {
-
-        const cell       = document.createElement('div');
-        cell.className   = 'cak-cell';
-        cell.style.top   = rowTop + 'px';
-        cell.style.height = rowHeight + 'px';
-
-        // Bakgrunnsfarge fra første celle i raden (zebrastriper, markeringer)
-        const firstRowCell = row.querySelector('.slick-cell');
-        const rowBg = firstRowCell
-          ? getComputedStyle(firstRowCell).backgroundColor
-          : getComputedStyle(row).backgroundColor;
-
-        // Aktivitetskolonnen skal være transparent slik at underlaget vises.
-        cell.style.background = 'transparent';
-
-        if (sid) {
-          const data       = studentData[sid] || {};
-          const loginDays  = daysSince(data.lastActivity);
-          const subDays    = daysSince(data.lastSubmission);
-          const delta      = data.deadlineDelta;
-
-          // Trafikklys-tint legges på underliggende navnecelle (ikke ikon-cellen).
-          // Slik bevares ikonfarger og uttrykket blir svært diskret.
-          const tint = cfg.rowHighlight
-            ? activityCellTint(delta, data.hasDeadlines)
-            : null;
-          if (firstRowCell) firstRowCell.style.backgroundColor = tint || '';
-
-          const ring     = document.createElement('span');
-          ring.className = 'cak-ring ' + ringClass(loginDays);
-
-          const mark       = document.createElement('span');
-          mark.className   = 'cak-mark ' + markClass(subDays);
-          mark.textContent = markChar(subDays);
-
-          const tlWrap = document.createElement('div');
-          tlWrap.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;background:#f5f4ee;border:0.5px solid #d3d1c7;border-radius:5px;padding:2px 4px;height:22px;flex-shrink:0';
-          tlWrap.appendChild(makeTimelineSvg(delta, data.hasDeadlines));
-
-          const iconsWrap = document.createElement('div');
-          iconsWrap.className = 'cak-cell-icons';
-          iconsWrap.appendChild(ring);
-          iconsWrap.appendChild(mark);
-          iconsWrap.appendChild(tlWrap);
-          cell.appendChild(iconsWrap);
-
-          const tipHtml = buildTooltip(
-            loginDays,
-            subDays,
-            delta,
-            data.deadlineCount,
-            data.godkjent,
-            data.venterVurdering,
-            data.totalt
-          );
-          cell.addEventListener('mouseenter', (e) => showTip(e, tipHtml, tooltipFontSize));
-          cell.addEventListener('mousemove',  moveTip);
-          cell.addEventListener('mouseleave', hideTip);
+        if (!tooltipFontSize) {
+          const sampleNameEl =
+            rows[0].querySelector('a[href*="/users/"]') ||
+            rows[0].querySelector('a[href*="/grades/"]') ||
+            rows[0].querySelector('.slick-cell') ||
+            null;
+          const cs = sampleNameEl ? getComputedStyle(sampleNameEl) : null;
+          tooltipFontSize = cs && cs.fontSize ? cs.fontSize : null;
         }
 
-        overlayEl.appendChild(cell);
-      });
+        // Høyde: finn laveste faktiske rad-posisjon
+        let maxBottom = 0;
+        rows.forEach(r => {
+          const top = parseInt(r.style.top, 10) || 0;
+          const h   = r.offsetHeight || rowHeight;
+          if (top + h > maxBottom) maxBottom = top + h;
+        });
+        overlayEl.style.left   = (colWidth - COL_W - 10) + 'px';
+        overlayEl.style.width  = COL_W + 'px';
+        overlayEl.style.height = maxBottom + 'px';
 
-    } finally {
-      // Frigjør guard asynkront — etter at nåværende DOM-flush er ferdig
-      setTimeout(() => { isUpdating = false; }, 0);
-    }
+        // Laste-indikator øverst i kolonnen
+        if (isLoading && !loadingBarEl) {
+          loadingBarEl = document.createElement('div');
+          loadingBarEl.className = 'cak-loading-bar';
+          overlayEl.appendChild(loadingBarEl);
+        } else if (!isLoading && loadingBarEl) {
+          loadingBarEl.remove();
+          loadingBarEl = null;
+        }
+
+        // Header — opprett én gang, oppdater kun posisjon og tekst
+        const header = findFrozenHeader();
+        if (header) {
+          const viewport = frozenCanvas.parentElement;
+          const vRect    = viewport.getBoundingClientRect();
+          const hRect    = header.getBoundingClientRect();
+          const relTop   = hRect.top - vRect.top + viewport.scrollTop;
+
+          if (!headerCellEl) {
+            headerCellEl = document.createElement('div');
+            headerCellEl.className        = 'cak-col-header';
+            headerCellEl.style.cursor     = 'pointer';
+            headerCellEl.style.pointerEvents = 'all';
+            headerCellEl.addEventListener('click', toggleSort);
+            overlayEl.appendChild(headerCellEl);
+          }
+          headerCellEl.style.top    = relTop + 'px';
+          headerCellEl.style.height = hRect.height + 'px';
+          headerCellEl.innerHTML = sortActive
+            ? 'Prioritet <span style="font-size:10px;margin-left:2px;">↑</span>'
+            : 'Aktivitet';
+          headerCellEl.title = sortActive
+            ? 'Klikk for å tilbakestille sortering'
+            : 'Klikk for å sortere etter oppfølgingsbehov';
+        }
+
+        // Bygg liste over synlige rader med posisjon og student-ID
+        const rowItems = [];
+        rows.forEach((row) => {
+          const sid    = extractStudentId(row);
+          const rowTop = parseInt(row.style.top, 10) || 0;
+          rowItems.push({ sid, rowTop, row });
+        });
+
+        // Hvis sortering er aktiv: sorter etter prioritetspoeng men behold Canvas-slots
+        let displayOrder = [...rowItems];
+        if (sortActive) {
+          const slots = rowItems.map(r => r.rowTop).sort((a, b) => a - b);
+          const sorted = [...rowItems].sort((a, b) => {
+            const sa = a.sid ? priorityScore(a.sid) : 99999;
+            const sb = b.sid ? priorityScore(b.sid) : 99999;
+            return sb - sa;
+          });
+          displayOrder = sorted.map((item, i) => ({
+            ...item,
+            rowTop: slots[i]
+          }));
+        }
+
+        // Smart diff: flytt eksisterende celler, opprett nye, fjern foreldreløse
+        const activeSids = new Set();
+
+        displayOrder.forEach(({ sid, rowTop, row }) => {
+          const key = sid || ('__row__' + rowTop);
+          activeSids.add(key);
+
+          // Trafikklys-tint på navnecellen — alltid oppdatert (kun repaint, ikke reflow)
+          const firstRowCell = row.querySelector('.slick-cell');
+          if (sid && firstRowCell) {
+            const data = studentData[sid] || {};
+            const tint = cfg.rowHighlight
+              ? activityCellTint(data.leksjonerEtter, data.hasDeadlines)
+              : null;
+            firstRowCell.style.backgroundColor = tint || '';
+          }
+
+          if (cellCache.has(key)) {
+            // Bare oppdater posisjon — ingen ny DOM-bygging
+            const cached = cellCache.get(key);
+            cached.style.top    = rowTop + 'px';
+            cached.style.height = rowHeight + 'px';
+          } else {
+            // Bygg ny celle
+            const cell       = document.createElement('div');
+            cell.className   = 'cak-cell';
+            cell.style.top   = rowTop + 'px';
+            cell.style.height = rowHeight + 'px';
+            cell.style.background = 'transparent';
+
+            if (sid) {
+              const data      = studentData[sid] || {};
+              const loginDays = daysSince(data.lastActivity);
+              const subDays   = daysSince(data.lastSubmission);
+              const delta     = data.deadlineDelta;
+
+              const ring     = document.createElement('span');
+              ring.className = 'cak-ring ' + ringClass(loginDays);
+
+              const mark       = document.createElement('span');
+              mark.className   = 'cak-mark ' + markClass(subDays);
+              mark.textContent = markChar(subDays);
+
+              const tlWrap = document.createElement('div');
+              tlWrap.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;background:#f5f4ee;border:0.5px solid #d3d1c7;border-radius:5px;padding:2px 4px;height:22px;flex-shrink:0';
+              tlWrap.appendChild(makeTimelineSvg(delta, data.hasDeadlines));
+
+              const iconsWrap = document.createElement('div');
+              iconsWrap.className = 'cak-cell-icons';
+              iconsWrap.appendChild(ring);
+              iconsWrap.appendChild(mark);
+              iconsWrap.appendChild(tlWrap);
+              cell.appendChild(iconsWrap);
+
+              const tipHtml = buildTooltip(
+                loginDays, subDays, delta,
+                data.deadlineCount, data.godkjent,
+                data.venterVurdering, data.totalt
+              );
+              cell.addEventListener('mouseenter', (e) => showTip(e, tipHtml, tooltipFontSize));
+              cell.addEventListener('mousemove',  moveTip);
+              cell.addEventListener('mouseleave', hideTip);
+            }
+
+            cellCache.set(key, cell);
+            overlayEl.appendChild(cell);
+          }
+        });
+
+        // Fjern celler som ikke lenger er synlige
+        for (const [key, cell] of cellCache) {
+          if (!activeSids.has(key)) {
+            cell.remove();
+            cellCache.delete(key);
+          }
+        }
+
+      } finally {
+        setTimeout(() => { isUpdating = false; }, 0);
+      }
+    });
   }
 
   // ─── Tidslinje SVG ────────────────────────────────────────────────────────
@@ -606,17 +715,16 @@
     return '#a32d2d';                  // klart etter
   }
 
-  function activityCellTint(delta, hasDeadlines) {
+  function activityCellTint(leksjonerEtter, hasDeadlines) {
     // Ingen frister i kurset → ingen trafikklys-farge
-    if (delta === undefined && !hasDeadlines) return null;
+    if (leksjonerEtter === null && !hasDeadlines) return null;
     // Har frister men ikke levert / mangler grunnlag → rød
-    if (delta === null || delta === undefined) return 'rgba(198, 40, 40, 0.20)';
+    if (leksjonerEtter === null) return 'rgba(198, 40, 40, 0.20)';
 
-    // Marker kun elever som er etter med leksjoner.
-    // 2 etter -> grønn, 3 etter -> gul, 4+ etter -> rød.
-    if (delta >= 0)  return null;
-    if (delta === -2) return 'rgba(46, 125, 50, 0.18)';
-    if (delta === -3) return 'rgba(251, 192, 45, 0.20)';
+    // 0-1 etter → ingen farge, 2 → grønn, 3 → gul, 4+ → rød
+    if (leksjonerEtter <= 1)  return null;
+    if (leksjonerEtter === 2) return 'rgba(46, 125, 50, 0.18)';
+    if (leksjonerEtter === 3) return 'rgba(251, 192, 45, 0.20)';
     return 'rgba(198, 40, 40, 0.23)';
   }
 
@@ -776,6 +884,13 @@
     });
     window.addEventListener('scroll', debouncedUpdate, { passive: true });
     window.addEventListener('resize', debouncedUpdate, { passive: true });
+
+    // ResizeObserver på grid-canvas: fanger rad-tillegg og høyde-endringer
+    // som MutationObserver (childList) kan misse under Canvas sin init-sekvens
+    const frozenCanvas = findFrozenCanvas();
+    if (frozenCanvas && window.ResizeObserver) {
+      new ResizeObserver(debouncedUpdate).observe(frozenCanvas);
+    }
   }
 
   function debounce(fn, ms) {

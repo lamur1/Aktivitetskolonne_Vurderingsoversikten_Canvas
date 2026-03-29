@@ -120,6 +120,29 @@
       margin: 10px 0;
     }
     .disabled-overlay { opacity: 0.4; pointer-events: none; }
+    .seg-ctrl {
+      display: flex;
+      border: 0.5px solid #d3d1c7;
+      border-radius: 5px;
+      overflow: hidden;
+      width: 100%;
+      margin-top: 6px;
+    }
+    .seg-btn {
+      flex: 1;
+      padding: 5px 2px;
+      font-size: 11px;
+      font-family: LatoWeb, Lato, -apple-system, sans-serif;
+      color: #5f5e5a;
+      background: #fafaf8;
+      border: none;
+      border-right: 0.5px solid #d3d1c7;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .seg-btn:last-child { border-right: none; }
+    .seg-btn.active { background: #3b6d11; color: #fff; }
+    .seg-btn:hover:not(.active) { background: #f0efe8; }
     .footer {
       margin-top: 14px;
       font-size: 10px;
@@ -198,13 +221,26 @@
 
     <div class="divider"></div>
 
+    <!-- Godkjenningsgrunnlag -->
+    <div class="section">
+      <div class="section-title">Godkjenningsgrunnlag</div>
+      <div style="font-size:11px; color:#5f5e5a; margin-bottom:2px;">Hva teller som godkjent leksjon?</div>
+      <div class="seg-ctrl" id="grading-mode">
+        <button class="seg-btn active" data-val="teacher">Kun lærer</button>
+        <button class="seg-btn" data-val="both">Begge</button>
+        <button class="seg-btn" data-val="auto">Kun auto</button>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
     <!-- Fargemerking -->
     <div class="section">
       <div class="section-title">Fargemerking</div>
       <div class="row">
         <span class="row-label" style="flex:1;">Trafikklys i aktivitetscellen</span>
         <label class="switch" style="margin-left:auto;">
-          <input type="checkbox" id="toggle-highlight" checked>
+          <input type="checkbox" id="toggle-highlight">
           <span class="slider"></span>
         </label>
       </div>
@@ -218,7 +254,10 @@
 
   <div style="border-top:0.5px solid #e8e8e4; margin-top:12px; padding:10px 0 4px; font-size:11px; color:#888780; text-align:center;">
     <span id="cache-status">Sjekker…</span><br>
-    <button id="btn-refresh" style="margin-top:6px; font-size:11px; padding:3px 12px; cursor:pointer; border:0.5px solid #d3d1c7; border-radius:4px; background:#fafaf8; color:#444441;">⟳ Oppdater nå</button>
+    <div style="display:flex; gap:6px; justify-content:center; margin-top:6px;">
+      <button id="btn-refresh" style="font-size:11px; padding:3px 12px; cursor:pointer; border:0.5px solid #d3d1c7; border-radius:4px; background:#fafaf8; color:#444441;">⟳ Oppdater nå</button>
+      <button id="btn-pin" style="font-size:11px; padding:3px 12px; cursor:pointer; border:0.5px solid #d3d1c7; border-radius:4px; background:#fafaf8; color:#444441;" title="Fester fanen slik at den ikke kan lukkes med Ctrl+W">📌 Fest fanen</button>
+    </div>
   </div>
 
   <div class="footer">Canvas Aktivitetskolonne v1.0</div>

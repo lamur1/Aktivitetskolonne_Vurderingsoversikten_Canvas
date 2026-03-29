@@ -8,7 +8,8 @@ const DEFAULTS = {
   submissionYellow: 21,
   lessonThreshold: 50,
   totalLessons: 15,
-  rowHighlight: true
+  rowHighlight: false,
+  gradingMode: 'teacher'
 };
 
 const ids = ['loginGreen', 'loginYellow', 'submissionGreen', 'submissionYellow', 'lessonThreshold', 'totalLessons'];
@@ -21,6 +22,7 @@ chrome.storage.sync.get(DEFAULTS, (cfg) => {
     const el = document.getElementById(id);
     if (el) el.value = cfg[id] ?? DEFAULTS[id];
   });
+  setGradingMode(cfg.gradingMode || 'teacher');
 });
 
 chrome.storage.local.get('cak_last_updated', (r) => {
@@ -49,6 +51,15 @@ document.getElementById('toggle-highlight').addEventListener('change', (e) => {
   save({ rowHighlight: e.target.checked });
 });
 
+document.getElementById('btn-pin').addEventListener('click', () => {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs[0]) {
+      chrome.tabs.update(tabs[0].id, { pinned: true });
+      window.close();
+    }
+  });
+});
+
 document.getElementById('btn-refresh').addEventListener('click', () => {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (tabs[0]) {
@@ -73,6 +84,20 @@ ids.forEach((id) => {
     save({ [id]: val });
   });
 });
+
+document.getElementById('grading-mode').addEventListener('click', (e) => {
+  const btn = e.target.closest('.seg-btn');
+  if (!btn) return;
+  const val = btn.dataset.val;
+  setGradingMode(val);
+  save({ gradingMode: val });
+});
+
+function setGradingMode(val) {
+  document.querySelectorAll('#grading-mode .seg-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === val);
+  });
+}
 
 function save(changes) {
   chrome.storage.sync.set(changes);

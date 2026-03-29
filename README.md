@@ -4,6 +4,19 @@ Chrome-utvidelse som legger til en diskret aktivitetskolonne i Canvas vurderings
 
 ---
 
+## Første gang — det tar litt tid
+
+Første gang du åpner en klasse henter utvidelsen data fra Canvas API i to omganger:
+
+1. **Innlogging vises straks** — ringer dukker opp etter noen sekunder. En grønn strek animeres i kolonnehodet mens resten lastes.
+2. **Innleveringsdata og fremdrift** — dette er den tunge delen. En klasse med 30 elever og 15 leksjoner kan ha 1 000–2 000 innleveringer som skal hentes og beregnes. Dette tar typisk 10–30 sekunder avhengig av klassestørrelse og internettforbindelsen din.
+
+Når alt er lastet caches dataene lokalt i 1 time. Neste gang du åpner samme klasse vises alt umiddelbart.
+
+> **Tips:** Klikk **📌 Fest fanen** i innstillingspanelet for å feste vurderingsoversikten som en pinned tab i Chrome. Da kan ikke fanen lukkes ved et uhell med Ctrl+W, og den ligger alltid klar ytterst til venstre i nettleseren.
+
+---
+
 ## Installasjon
 
 1. Last ned og pakk ut mappen
