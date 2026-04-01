@@ -4,7 +4,7 @@
   const DEFAULTS = {
     visible: true,
     loginGreen: 3,
-    loginYellow: 10,
+    loginYellow: 7,
     submissionGreen: 7,
     submissionYellow: 21,
     lessonThreshold: 50,
@@ -25,7 +25,7 @@
   let loadingBarEl   = null;
   let isLoading      = false;
 
-  const COL_W = 110;
+  const COL_W = 130;
 
   chrome.storage.sync.get(DEFAULTS, (saved) => {
     cfg = { ...DEFAULTS, ...saved };
@@ -125,32 +125,34 @@
       .cak-cell:hover { filter: brightness(0.96); }
       .cak-ring {
         display: inline-block;
-        width: 16px; height: 16px;
+        width: 18px; height: 18px;
         border-radius: 50%;
         box-sizing: border-box;
         flex-shrink: 0;
       }
-      .cak-ring-4 { border: 4px   solid #3b6d11; }
-      .cak-ring-3 { border: 3px   solid #639922; }
-      .cak-ring-2 { border: 2px   solid #97c459; }
-      .cak-ring-1 { border: 1.5px solid #b4b2a9; }
+      /* Fylt sirkel = nylig innlogget → tom ring = lenge siden. Redundant koding: fyllgrad + kanttykkelse */
+      .cak-ring-4 { background: #639922; border: 2px solid #3b6d11; }
+      .cak-ring-3 { background: conic-gradient(#639922 0deg 270deg, #dddbd3 270deg 360deg); border: 1.5px solid #b4b2a9; }
+      .cak-ring-2 { background: conic-gradient(#97c459 0deg 180deg, #dddbd3 180deg 360deg); border: 1px solid #b4b2a9; }
+      .cak-ring-1 { background: #dddbd3; border: 0.75px solid #b4b2a9; }
       .cak-mark {
-        font-size: 15px;
-        font-weight: 600;
-        font-family: LatoWeb, Lato, sans-serif;
-        line-height: 1;
-        user-select: none;
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border-radius: 2px;
+        box-sizing: border-box;
         flex-shrink: 0;
       }
-      .cak-v    { color: #3b6d11; }
-      .cak-dash { color: #888780; }
-      .cak-x    { color: #a32d2d; }
+      /* Fylt firkant = nylig levert → tom firkant = lenge siden / aldri */
+      .cak-v    { background: #639922; border: 1.5px solid #3b6d11; }
+      .cak-dash { background: linear-gradient(90deg, #888780 50%, #e8e6de 50%); border: 1px solid #b4b2a9; }
+      .cak-x    { background: rgba(198, 40, 40, 0.10); border: 1.5px solid #a32d2d; }
       .cak-loading-bar {
         position: absolute;
         top: 0;
         left: 0;
-        right: 0;
-        height: 2px;
+        width: 3px;
+        bottom: 0;
         z-index: 10;
         overflow: hidden;
         border-radius: 1px;
@@ -158,15 +160,16 @@
       .cak-loading-bar::after {
         content: '';
         position: absolute;
-        left: -60%;
-        width: 60%;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, #3b6d11, #639922, transparent);
+        top: -40%;
+        left: 0;
+        width: 100%;
+        height: 40%;
+        background: linear-gradient(180deg, transparent, #3b6d11, #639922, transparent);
         animation: cak-sweep 1.4s ease-in-out infinite;
       }
       @keyframes cak-sweep {
-        0%   { left: -60%; }
-        100% { left: 100%; }
+        0%   { top: -40%; }
+        100% { top: 100%; }
       }
       #cak-tooltip {
         position: fixed;
@@ -506,7 +509,7 @@
           const h   = r.offsetHeight || rowHeight;
           if (top + h > maxBottom) maxBottom = top + h;
         });
-        overlayEl.style.left   = (colWidth - COL_W - 10) + 'px';
+        overlayEl.style.left   = (colWidth - COL_W - 4) + 'px';
         overlayEl.style.width  = COL_W + 'px';
         overlayEl.style.height = maxBottom + 'px';
 
@@ -608,9 +611,8 @@
               const ring     = document.createElement('span');
               ring.className = 'cak-ring ' + ringClass(loginDays);
 
-              const mark       = document.createElement('span');
-              mark.className   = 'cak-mark ' + markClass(subDays);
-              mark.textContent = markChar(subDays);
+              const mark     = document.createElement('span');
+              mark.className = 'cak-mark ' + markClass(subDays);
 
               const tlWrap = document.createElement('div');
               tlWrap.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;background:#f5f4ee;border:0.5px solid #d3d1c7;border-radius:5px;padding:2px 4px;height:22px;flex-shrink:0';
@@ -655,24 +657,54 @@
 
   // ─── Tidslinje SVG ────────────────────────────────────────────────────────
   function makeTimelineSvg(delta, hasDeadlines) {
-    const W = 40, H = 16, mid = W / 2;
+    const W = 56, H = 16, mid = W / 2;
+    const barH = 6, barY = (H - barH) / 2;
+    const margin = 3;
+
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', W);
     svg.setAttribute('height', H);
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.style.flexShrink = '0';
 
+    // Gradientdefinisjoner
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+
+    const gGreen = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+    gGreen.setAttribute('id', 'cak-bar-green');
+    gGreen.setAttribute('x1', '0%'); gGreen.setAttribute('x2', '100%');
+    gGreen.setAttribute('y1', '0%'); gGreen.setAttribute('y2', '0%');
+    [['0%', '#97c459'], ['100%', '#3b6d11']].forEach(([offset, color]) => {
+      const s = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+      s.setAttribute('offset', offset); s.setAttribute('stop-color', color);
+      gGreen.appendChild(s);
+    });
+
+    const gRed = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+    gRed.setAttribute('id', 'cak-bar-red');
+    gRed.setAttribute('x1', '100%'); gRed.setAttribute('x2', '0%');
+    gRed.setAttribute('y1', '0%');   gRed.setAttribute('y2', '0%');
+    [['0%', '#e57373'], ['100%', '#a32d2d']].forEach(([offset, color]) => {
+      const s = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+      s.setAttribute('offset', offset); s.setAttribute('stop-color', color);
+      gRed.appendChild(s);
+    });
+
+    defs.appendChild(gGreen);
+    defs.appendChild(gRed);
+    svg.appendChild(defs);
+
     // Horisontal linje
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', '2');
+    line.setAttribute('x1', String(margin));
     line.setAttribute('y1', '8');
-    line.setAttribute('x2', String(W - 2));
+    line.setAttribute('x2', String(W - margin));
     line.setAttribute('y2', '8');
     line.setAttribute('stroke', '#d3d1c7');
     line.setAttribute('stroke-width', '1.5');
     svg.appendChild(line);
 
-    // Loddrett frist-strek
+    // Loddrett midtstrek
     const tick = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     tick.setAttribute('x', String(mid - 1.2));
     tick.setAttribute('y', '2');
@@ -683,7 +715,7 @@
     svg.appendChild(tick);
 
     if (delta === undefined && !hasDeadlines) {
-      // Ingen frister satt i kurset — stiplet sirkel
+      // Ingen frister — stiplet sirkel
       const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
       c.setAttribute('cx', String(mid));
       c.setAttribute('cy', '8');
@@ -697,28 +729,41 @@
     }
 
     if (delta === null) {
-      // Har frister men ikke levert — prikk ytterst til venstre, rød
-      const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      c.setAttribute('cx', '4');
-      c.setAttribute('cy', '8');
-      c.setAttribute('r', '4.5');
-      c.setAttribute('fill', '#a32d2d');
-      svg.appendChild(c);
+      // Har frister men ikke levert — full rød bar til venstre
+      const bar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      bar.setAttribute('x', String(margin));
+      bar.setAttribute('y', String(barY));
+      bar.setAttribute('width', String(mid - margin - 1));
+      bar.setAttribute('height', String(barH));
+      bar.setAttribute('rx', '2');
+      bar.setAttribute('fill', 'url(#cak-bar-red)');
+      svg.appendChild(bar);
       return svg;
     }
 
-    // Proporsjonal posisjon: klemmer til [-21, +21] dager
+    // Delta = 0 → bare midtstreken, ingen bar
+    if (delta === 0) return svg;
+
     const clamped   = Math.max(-5, Math.min(5, delta));
-    const halfRange = (W / 2) - 5;
-    const x         = mid + (clamped / 5) * halfRange;
+    const halfRange = mid - margin - 2;
+    const barLen    = Math.max(4, (Math.abs(clamped) / 5) * halfRange);
 
-    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    dot.setAttribute('cx', String(Math.round(x)));
-    dot.setAttribute('cy', '8');
-    dot.setAttribute('r', '4.5');
-    dot.setAttribute('fill', dotColor(delta));
-    svg.appendChild(dot);
+    const bar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bar.setAttribute('y', String(barY));
+    bar.setAttribute('height', String(barH));
+    bar.setAttribute('rx', '2');
 
+    if (delta > 0) {
+      bar.setAttribute('x', String(mid + 2));
+      bar.setAttribute('width', String(barLen));
+      bar.setAttribute('fill', 'url(#cak-bar-green)');
+    } else {
+      bar.setAttribute('x', String(mid - barLen - 2));
+      bar.setAttribute('width', String(barLen));
+      bar.setAttribute('fill', 'url(#cak-bar-red)');
+    }
+
+    svg.appendChild(bar);
     return svg;
   }
 
@@ -799,7 +844,7 @@
     if (days === null)           return 'cak-ring-1';
     if (days <= cfg.loginGreen)  return 'cak-ring-4';
     if (days <= cfg.loginYellow) return 'cak-ring-3';
-    if (days <= 21)              return 'cak-ring-2';
+    if (days <= 15)              return 'cak-ring-2';
     return 'cak-ring-1';
   }
 

@@ -3,7 +3,7 @@
 const DEFAULTS = {
   visible: true,
   loginGreen: 3,
-  loginYellow: 10,
+  loginYellow: 7,
   submissionGreen: 7,
   submissionYellow: 21,
   lessonThreshold: 50,
@@ -22,6 +22,7 @@ chrome.storage.sync.get(DEFAULTS, (cfg) => {
     if (el) el.value = cfg[id] ?? DEFAULTS[id];
   });
   setGradingMode(cfg.gradingMode || 'teacher');
+  updateTynnLabel();
 });
 
 chrome.storage.local.get('cak_last_updated', (r) => {
@@ -50,15 +51,6 @@ document.getElementById('toggle-highlight').addEventListener('change', (e) => {
   save({ rowHighlight: e.target.checked });
 });
 
-document.getElementById('btn-pin').addEventListener('click', () => {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (tabs[0]) {
-      chrome.tabs.update(tabs[0].id, { pinned: true });
-      window.close();
-    }
-  });
-});
-
 document.getElementById('btn-refresh').addEventListener('click', () => {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (tabs[0]) {
@@ -74,6 +66,12 @@ document.getElementById('btn-refresh').addEventListener('click', () => {
   });
 });
 
+function updateTynnLabel() {
+  const yellow = parseInt(document.getElementById('loginYellow').value) || DEFAULTS.loginYellow;
+  const el = document.getElementById('label-tynn');
+  if (el) el.textContent = `${yellow + 1}–15 dager`;
+}
+
 ids.forEach((id) => {
   const el = document.getElementById(id);
   if (!el) return;
@@ -81,6 +79,7 @@ ids.forEach((id) => {
     const val = Math.max(1, parseInt(el.value, 10) || DEFAULTS[id]);
     el.value = val;
     save({ [id]: val });
+    if (id === 'loginYellow') updateTynnLabel();
   });
 });
 

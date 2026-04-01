@@ -39,40 +39,46 @@ Kolonnen svever på høyre kant av navnekolonnen slik at Merknader-kolonnen allt
   └──────────── Innlogging (ring)
 ```
 
-### Symbol 1 — Ring (innlogging)
+### Symbol 1 — Sirkel (innlogging)
+
+Sirkelen bruker to redundante kanaler — fyllingsgrad og kanttykkelse — for å vise hvor nylig eleven var innlogget.
 
 | Symbol | Betyr |
 |--------|-------|
-| Tykk, mørk ring | Innlogget siste 1–3 dager |
-| Medium ring | Innlogget for 4–10 dager siden |
-| Tynn ring | Innlogget for 11–21 dager siden |
-| Veldig tynn, grå ring | Ikke sett på over 21 dager |
+| Fylt sirkel, tykk kant | Innlogget siste 1–3 dager |
+| ¾ fylt, medium kant | Innlogget for 4–7 dager siden |
+| ½ fylt, tynn kant | Innlogget for 8–15 dager siden |
+| Tom, veldig tynn kant | Ikke sett på over 15 dager |
 
-### Symbol 2 — Tegn (innlevering)
+### Symbol 2 — Firkant (innlevering)
+
+Firkanten viser status for siste innlevering. Formen skiller den tydelig fra sirkelen.
 
 | Symbol | Betyr |
 |--------|-------|
-| ✓ grønn | Levert innen 7 dager |
-| – grå | Levert for 8–21 dager siden |
-| ✗ rød | Ikke levert på lenge, eller aldri |
+| Fylt grønn firkant | Levert innen 7 dager |
+| Halvt fylt grå firkant | Levert for 8–21 dager siden |
+| Tom firkant, rød kant | Ikke levert på lenge, eller aldri |
 
 ### Symbol 3 — Fremdriftsindikator (tidslinje)
 
-Den loddrette streken er nullpunktet. Prikken viser leksjonsfremdrift.
+Den loddrette streken er nullpunktet — her skal eleven være akkurat nå. En bar vokser ut fra nullpunktet og viser retning og omfang av avviket.
 
 ```
-  [●——|————]   Etter skjema — trenger oppfølging
-  [————|————]   I rute
-  [————|———●]   Foran skjema
-  [————|--○-]   Ingen fristdata (stiplet)
+  [████|————]   Etter skjema — rød bar til venstre
+  [————|————]   I rute — bare midtstreken
+  [————|████]   Foran skjema — grønn bar til høyre
+  [————|--○-]   Ingen fristdata (stiplet sirkel)
 ```
 
-| Prikkfarge | Betyr |
-|------------|-------|
-| Mørk grønn | Foran skjema |
-| Grønn | I rute |
-| Oransje | Litt etter |
-| Rød | Klart etter skjema |
+Barens farge bruker gradient: lys nær nullpunktet, mørkere mot enden — jo lenger baren strekker seg, jo mer intens blir fargen.
+
+| Bar | Betyr |
+|-----|-------|
+| Grønn bar høyre | Foran skjema |
+| Ingen bar | I rute |
+| Rød bar venstre | Etter skjema |
+| Full rød bar venstre | Har frister, ikke levert |
 
 Hover over en celle for nøyaktige tall:
 ```
@@ -136,13 +142,15 @@ Klikk utvidelsesikonet i Chrome-verktøylinjen for å åpne innstillingspanelet.
 ### Vis/skjul kolonnen
 Togglen øverst skjuler kolonnen raskt når du trenger mer plass.
 
-### Innlogging (ring)
-- Tykk ring: innlogget innen X dager (standard: 3)
-- Medium ring: innlogget innen X dager (standard: 10)
+### Innlogging (sirkel)
+- Fylt sirkel: innlogget innen X dager (standard: 3)
+- ¾ fylt: innlogget innen X dager (standard: 7)
+- Over grensen → ½ fylt (til 15 dager) → tom sirkel (over 15 dager)
 
-### Innlevering (tegn)
-- ✓ vises når siste innlevering er innen X dager (standard: 7)
-- – vises når siste innlevering er innen X dager (standard: 21)
+### Innlevering (firkant)
+- Fylt grønn firkant: levert innen X dager (standard: 7)
+- Halvt fylt grå firkant: levert innen X dager (standard: 21)
+- Tom rødkantet firkant: over grensen eller aldri levert
 
 ### Fremdriftsindikator (tidslinje)
 
