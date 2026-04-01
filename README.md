@@ -80,9 +80,10 @@ Innlogget: 2 dager siden
 Innlevert: 5 dager siden
 8 av 15 leksjoner Fullført · Terskel: 50%
 2 innleveringer venter vurdering
+På etterskudd — 3 leksjoner etter skoleruta
 ```
 
-**"Fullført"** teller kun leksjoner hvor lærer har gitt tilbakemelding og satt status til Fullført. Innleveringer som er levert men ikke vurdert ennå vises på egen linje som «venter vurdering».
+**"Fullført"** teller kun leksjoner hvor lærer har gitt tilbakemelding og satt status til Fullført. Innleveringer som er levert men ikke vurdert ennå vises på egen linje som «venter vurdering». Elever som er etter skoleruta får en egen linje som viser hvor mange leksjoner de henger etter.
 
 ### Fargemerking av rader
 
@@ -100,27 +101,31 @@ Når fargemerking er slått på får Canvas-radene en dempet trafikklys-farge ba
 
 ## Hvordan fremdriften beregnes
 
-Oppgavene grupperes per leksjon basert på leksjonsnummer i oppgavetittelen (f.eks. "L 23 – Innleveringsoppgave").
+Oppgavene grupperes per leksjon basert på hvilken **modul** de tilhører i Canvas. Én modul = én leksjon. Alle innleveringstyper som ligger som element i en modul telles: oppgaver, New Quizzes og diskusjoner. Totalt antall leksjoner er fast satt til 15.
+
+Moduler som kun inneholder upublisert innhold filtreres automatisk ut og påvirker ikke beregningene. Unngå å ha publiserte oppgaver med frister i moduler som ikke er en del av de 15 leksjonene.
 
 **Per leksjon:**
-```
-Fullføring = leksjoner med Fullført-status / totalt antall leksjoner
-```
 
-- Leksjon **Fullført** (≥ terskel med lærerens godkjenning): teller positivt
-- Leksjon **levert men ikke vurdert**: teller ikke som Fullført — vises som «venter vurdering»
-- Leksjon **ikke godkjent** (< terskel): trekker 1 fra netto delta
+En leksjon regnes som **Fullført** når andelen lærergodkjente innleveringer er ≥ terskel (standard: 50 %). Det samme grunnlaget — lærergodkjenning — brukes for alle tre indikatorene: bakgrunnsfarge, prikkposisjon og hover-tekst.
+
+- Leksjon **Fullført** (≥ terskel, lærergodkjent): teller som godkjent
+- Leksjon **levert men ikke vurdert**: teller ikke som Fullført — vises som «venter vurdering» i hover-teksten
+- Leksjon **ikke godkjent** (< terskel): trekker 1 fra netto fremdrift
 - Leksjon **ikke påbegynt** (ingen levering, ingen mangler): ignoreres
 
-**Netto fremdrift:**
+**Trafikklys-farge** (når fargemerking er slått på):
 ```
-delta = (leksjoner foran skjema)
-      - (antall leksjoner under terskel)
+leksjoner etter skjema = leksjoner med passert frist - godkjente av disse
 ```
 
-Utvidelsen bruker Canvas sin egen `missing`-status. Oppgaver som ikke er levert men heller ikke markert som manglende teller ikke negativt.
+**Prikkposisjon** (fremdriftsindikator):
+```
+delta = (godkjente leksjoner levert før fremtidig frist)
+      - (leksjoner under terskel)
+```
 
-**Frivillige oppgaver** (uten frist) og **selvrettende quizer** (`online_quiz`) telles ikke med som standard, men kan slås på i innstillingene.
+**Innleveringer uten frist** ignoreres. Bare oppgaver med satt frist bidrar til leksjonsberegningen.
 
 ---
 
@@ -142,13 +147,7 @@ Togglen øverst skjuler kolonnen raskt når du trenger mer plass.
 ### Fremdriftsindikator (tidslinje)
 
 **Leksjon Fullført når ≥ X % er godkjent av lærer** (standard: 50%)
-Terskel for når en leksjon regnes som Fullført.
-
-**Frivillige oppgaver teller** (standard: av)
-Oppgaver uten oppsatt frist. Frivillige oppgaver som ikke er levert teller aldri negativt.
-
-**Selvrettende quizer teller** (standard: av)
-Oppgaver av typen `online_quiz` i Canvas.
+Terskel for når en leksjon regnes som Fullført. Gjelder for alle tre indikatorene: bakgrunnsfarge, prikkposisjon og hover-tekst. Totalt antall leksjoner er fast 15.
 
 ### Fargemerking av rader
 Slår av/på dempet trafikklys-farging av Canvas-rader basert på leksjonsfremdrift (grønn → gul → rød).
@@ -187,7 +186,7 @@ Utvidelsen inneholder ingen sporings- eller analysekode.
   - `enrollments` med `last_activity_at` — innloggingsdata
   - `students/submissions` med `missing`-flagg — innleveringsdata
   - `assignments` med `due_at` og `submission_types` — frist- og oppgavetype-data
-  - `modules` med `items` — kun modul-tilknyttede oppgaver telles
+  - `modules` med `items` — modulstruktur brukes til leksjonsgruppering; oppgaver, NQ (Quiz) og diskusjoner i moduler telles
 - Data caches i `chrome.storage.local` med 1-times utløp per kurs
 - Injiserer et flytende overlay-panel festet til Canvas sin SlickGrid-viewport
 
@@ -195,7 +194,6 @@ Utvidelsen inneholder ingen sporings- eller analysekode.
 
 ## Kjente begrensninger
 
-- Oppgavetitler må inneholde leksjonsnummer på formatet "L 23" for at leksjonsgruppering skal fungere
 - Canvas sin gradebook bruker virtuell scrolling (SlickGrid). DOM-strukturen kan variere mellom Canvas-versjoner. Ta kontakt hvis kolonnen ikke vises
 - Utvidelsen er testet på `*.instructure.com`. Andre domener krever endring av `host_permissions` i `manifest.json`
 

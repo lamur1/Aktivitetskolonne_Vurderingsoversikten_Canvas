@@ -7,12 +7,11 @@ const DEFAULTS = {
   submissionGreen: 7,
   submissionYellow: 21,
   lessonThreshold: 50,
-  totalLessons: 15,
   rowHighlight: false,
   gradingMode: 'teacher'
 };
 
-const ids = ['loginGreen', 'loginYellow', 'submissionGreen', 'submissionYellow', 'lessonThreshold', 'totalLessons'];
+const ids = ['loginGreen', 'loginYellow', 'submissionGreen', 'submissionYellow', 'lessonThreshold'];
 
 chrome.storage.sync.get(DEFAULTS, (cfg) => {
   document.getElementById('toggle-visible').checked   = cfg.visible !== false;

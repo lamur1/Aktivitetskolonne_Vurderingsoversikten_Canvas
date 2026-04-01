@@ -8,7 +8,6 @@
     submissionGreen: 7,
     submissionYellow: 21,
     lessonThreshold: 50,
-    totalLessons: 15,
     rowHighlight: false,
     gradingMode: 'teacher'
   };
@@ -292,23 +291,39 @@
   }
 
   function processStudentData(enrollments, submissions, assignments, modules) {
-    const moduleAssignmentIds = new Set();
-    modules.forEach(mod => {
-      (mod.items || []).forEach(item => {
-        if (item.type === 'Assignment' || item.type === 'Quiz') {
-          moduleAssignmentIds.add(String(item.content_id));
-        }
-      });
-    });
-
-    const assignmentMap = {};
+    // Oppslag-kart: assignment-ID og discussion-ID → assignment
+    const assignmentById = {};
+    const discussionIdToAssignment = {};
     assignments.forEach(a => {
-      if (moduleAssignmentIds.has(String(a.id))) {
-        assignmentMap[a.id] = a;
+      assignmentById[String(a.id)] = a;
+      if (a.discussion_topic) {
+        discussionIdToAssignment[String(a.discussion_topic.id)] = a;
       }
     });
 
-    const hasAnyDeadlines = Object.values(assignmentMap).some(a => a.due_at);
+    // Bygg moduleMap: modId → [assignment, ...] — inkluderer oppgaver, NQ og diskusjoner
+    const moduleMap = {};
+    const moduleAssignmentIds = new Set();
+    modules.forEach(mod => {
+      const modAssignments = [];
+      (mod.items || []).forEach(item => {
+        let asgn = null;
+        if (item.type === 'Assignment' || item.type === 'Quiz') {
+          asgn = assignmentById[String(item.content_id)];
+        } else if (item.type === 'Discussion') {
+          asgn = discussionIdToAssignment[String(item.content_id)];
+        }
+        if (asgn && asgn.published !== false) {
+          moduleAssignmentIds.add(String(asgn.id));
+          modAssignments.push(asgn);
+        }
+      });
+      if (modAssignments.length > 0) {
+        moduleMap[String(mod.id)] = modAssignments;
+      }
+    });
+
+    const hasAnyDeadlines = [...moduleAssignmentIds].some(id => assignmentById[id]?.due_at);
 
     enrollments.forEach((e) => {
       const sid = String(e.user_id);
@@ -338,40 +353,40 @@
         studentData[sid].lastSubmission = new Date(latest.submitted_at || latest.graded_at);
       }
 
+      // Gruppert per modul (leksjon) — én modul = én leksjon
       const lessons = {};
-      Object.values(assignmentMap).forEach((asgn) => {
-        if (!asgn.due_at) return;
+      Object.entries(moduleMap).forEach(([modId, modAssignments]) => {
+        modAssignments.forEach(asgn => {
+          if (!asgn.due_at) return;
+          if (!lessons[modId]) lessons[modId] = { total: 0, delivered: 0, missing: 0, ahead: 0, fullfort: 0, venter: 0, pastDue: 0 };
+          lessons[modId].total++;
 
-        const m      = (asgn.name || '').match(/L\s*(\d+)/i);
-        const lesson = m ? m[1] : '__ukjent__';
-        if (!lessons[lesson]) lessons[lesson] = { total: 0, delivered: 0, missing: 0, ahead: 0, fullfort: 0, venter: 0, pastDue: 0 };
-        lessons[lesson].total++;
+          const sub = subs.find(s => String(s.assignment_id) === String(asgn.id));
+          const now = Date.now();
+          const due = new Date(asgn.due_at);
 
-        const sub = subs.find(s => String(s.assignment_id) === String(asgn.id));
-        const now = Date.now();
-        const due = new Date(asgn.due_at);
+          if (due <= now) lessons[modId].pastDue++;
 
-        if (due <= now) lessons[lesson].pastDue++;
-
-        if (sub && (sub.submitted_at || sub.graded_at)) {
-          lessons[lesson].delivered++;
-          const isGraded = !!(
-            sub.workflow_state === 'graded' ||
-            sub.workflow_state === 'complete' ||
-            sub.graded_at
-          );
-          const graderId = sub.grader_id;
-          const isFullfort = isGraded && (
-            cfg.gradingMode === 'both'  ? true :
-            cfg.gradingMode === 'auto'  ? Number(graderId) < 0 :
-            /* teacher (default) */       Number(graderId) > 0
-          );
-          if (isFullfort) lessons[lesson].fullfort++;
-          if (!isGraded)  lessons[lesson].venter++;
-          if (due > now)  lessons[lesson].ahead++;
-        } else if (sub && sub.missing) {
-          lessons[lesson].missing++;
-        }
+          if (sub && (sub.submitted_at || sub.graded_at)) {
+            lessons[modId].delivered++;
+            const isGraded = !!(
+              sub.workflow_state === 'graded' ||
+              sub.workflow_state === 'complete' ||
+              sub.graded_at
+            );
+            const graderId = sub.grader_id;
+            const isFullfort = isGraded && (
+              cfg.gradingMode === 'both'  ? true :
+              cfg.gradingMode === 'auto'  ? Number(graderId) < 0 :
+              /* teacher (default) */       Number(graderId) > 0
+            );
+            if (isFullfort) lessons[modId].fullfort++;
+            if (!isGraded)  lessons[modId].venter++;
+            if (due > now)  lessons[modId].ahead++;
+          } else if (sub && sub.missing) {
+            lessons[modId].missing++;
+          }
+        });
       });
 
       let netDelta     = 0;
@@ -383,9 +398,8 @@
       let godkjentAvPasserte = 0;
       const threshold  = (cfg.lessonThreshold || 50) / 100;
 
-      Object.entries(lessons).forEach(([key, l]) => {
+      Object.values(lessons).forEach(l => {
         if (l.total === 0) return;
-        if (key === '__ukjent__') return;
         const completionFullfort = l.fullfort / l.total;
 
         if (l.pastDue > 0) {
@@ -399,7 +413,7 @@
         const completion = l.delivered / l.total;
         if (completionFullfort >= threshold) godkjent++;
         venterVurdering += l.venter || 0;
-        if (completion >= threshold) {
+        if (completionFullfort >= threshold) {
           if (l.ahead > 0) netDelta += 1;
         } else {
           netDelta -= 1;
@@ -416,7 +430,7 @@
         studentData[sid].godkjent        = godkjent;
         studentData[sid].leksjonerEtter  = leksjonerEtter;
         studentData[sid].venterVurdering = venterVurdering;
-        studentData[sid].totalt          = cfg.totalLessons || 15;
+        studentData[sid].totalt          = 15;
       } else if (hasAnyDeadlines) {
         studentData[sid].deadlineDelta = null;
         studentData[sid].hasDeadlines  = true;
@@ -612,7 +626,8 @@
               const tipHtml = buildTooltip(
                 loginDays, subDays, delta,
                 data.deadlineCount, data.godkjent,
-                data.venterVurdering, data.totalt
+                data.venterVurdering, data.totalt,
+                data.leksjonerEtter
               );
               cell.addEventListener('mouseenter', (e) => showTip(e, tipHtml, tooltipFontSize));
               cell.addEventListener('mousemove',  moveTip);
@@ -802,7 +817,7 @@
     return '✗';
   }
 
-  function buildTooltip(loginDays, subDays, delta, count, godkjent, venterVurdering, totalt) {
+  function buildTooltip(loginDays, subDays, delta, count, godkjent, venterVurdering, totalt, leksjonerEtter) {
     const l = loginDays === null
       ? 'Aldri innlogget'
       : `Innlogget: ${loginDays} dag${loginDays === 1 ? '' : 'er'} siden`;
@@ -822,6 +837,10 @@
         if (delta > 0) {
           const leks = delta === 1 ? '1 leksjon' : `${delta} leksjoner`;
           d += `<br>I forkant — levert i ${leks} med fremtidig frist`;
+        }
+        if (leksjonerEtter >= 2) {
+          const leks = leksjonerEtter === 1 ? '1 leksjon' : `${leksjonerEtter} leksjoner`;
+          d += `<br>På etterskudd — ${leks} etter skoleruta`;
         }
       } else {
         d = 'I rute — ingen leksjoner under terskel';
