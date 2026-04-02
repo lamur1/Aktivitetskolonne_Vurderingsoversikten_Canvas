@@ -86,10 +86,10 @@
       border-radius: 50%;
       flex-shrink: 0;
     }
-    .ring-4 { border: 3.5px solid #3b6d11; }
-    .ring-3 { border: 2.5px solid #639922; }
-    .ring-2 { border: 1.5px solid #97c459; }
-    .ring-1 { border: 1px   solid #b4b2a9; }
+    .ring-4 { background: #639922; border: 2px solid #3b6d11; }
+    .ring-3 { background: conic-gradient(#639922 0deg 270deg, #dddbd3 270deg 360deg); border: 1.5px solid #b4b2a9; }
+    .ring-2 { background: conic-gradient(#97c459 0deg 180deg, #dddbd3 180deg 360deg); border: 1px solid #b4b2a9; }
+    .ring-1 { background: #dddbd3; border: 0.75px solid #b4b2a9; }
     .mark {
       display: inline-block;
       width: 12px; height: 12px;
@@ -177,21 +177,21 @@
   <div id="settings-body">
     <!-- Innlogging -->
     <div class="section">
-      <div class="section-title">Innlogging (ring)</div>
+      <div class="section-title">Innlogging (sirkel)</div>
       <div class="row">
-        <span class="row-label"><span class="ring ring-4"></span> Tykk – aktiv</span>
+        <span class="row-label"><span class="ring ring-4"></span> Fylt</span>
         <div class="row-right">≤ <input type="number" id="loginGreen" min="1" max="30" value="3"> dager</div>
       </div>
       <div class="row">
-        <span class="row-label"><span class="ring ring-3"></span> Medium</span>
+        <span class="row-label"><span class="ring ring-3"></span> ¾ fylt</span>
         <div class="row-right">≤ <input type="number" id="loginYellow" min="1" max="60" value="7"> dager</div>
       </div>
       <div class="row">
-        <span class="row-label"><span class="ring ring-2"></span> Tynn</span>
+        <span class="row-label"><span class="ring ring-2"></span> Halvfylt</span>
         <div class="row-right" style="color:#b4b2a9; font-size:11px;" id="label-tynn">11–15 dager</div>
       </div>
       <div class="row">
-        <span class="row-label"><span class="ring ring-1"></span> Veldig tynn</span>
+        <span class="row-label"><span class="ring ring-1"></span> Tom</span>
         <div class="row-right" style="color:#b4b2a9; font-size:11px;">&gt; 15 dager</div>
       </div>
     </div>
