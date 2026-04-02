@@ -105,6 +105,48 @@ Når fargemerking er slått på får Canvas-radene en dempet trafikklys-farge ba
 
 ---
 
+## Slik tolker du tallene — viktig å vite
+
+### Batterigrafikkens er det mest direkte signalet
+
+Hover-vinduet viser et batteridiagram med én søyle per leksjon. Høyden på søylen viser hvor stor andel av lærebogsidene (Canvas-sider med «Vist»-krav) eleven faktisk har åpnet. **Dette er det mest pålitelige signalet på om eleven har jobbet med lærestoffet** — det avslører elever som leverer inn via gjøremålslisten uten å ha gått innom sidene med lærestoff.
+
+Stiplete søyler = leksjoner som ikke er påbegynt ennå (fristen er ikke passert).
+
+Hvite prikker på søylene = antall innleveringer som er hoppet over i den leksjonen.
+
+### «Fullført» er ikke det samme som «ferdig»
+
+Telleren «X av 15 leksjoner Fullført» er basert på to valg du gjør i innstillingene:
+
+**1. Terskelprosent (standard: 50%)**
+En leksjon teller som Fullført når minst X% av oppgavene i modulen er godkjent. Med 50% terskel og 4 oppgaver holder det med 2 godkjente — eleven kan ha hoppet over de viktigste. En høyere terskel gir et strengere krav, men ingen terskel kan fortelle deg *hvilke* oppgaver som er gjort.
+
+**2. Hva teller som «godkjent»?**
+
+| Valg | Hva som teller |
+|------|----------------|
+| Lærergodkjent (standard) | Kun oppgaver lærer har vurdert og satt status på |
+| Automatisk rettet | Kun quizer som Canvas har rettet automatisk |
+| Begge | Alt som er registrert som vurdert, uansett hvem |
+
+**Lærerrettet og automatisk rettet er fundamentalt forskjellige ting.** En quiz som autoavsluttes gir «vurdert»-status selv om eleven fikk 0%. En lærerrettet oppgave krever at lærer aktivt har godkjent arbeidet. Standardvalget «Lærergodkjent» er det strengeste og mest meningsfulle for oppfølging.
+
+### Konklusjon for tolkning
+
+Ingen enkelt indikator forteller hele historien. Bruk dem sammen:
+
+- **Sirkel** → er eleven aktiv i Canvas?
+- **Firkant** → har eleven levert noe nylig?
+- **Tidslinje** → er eleven foran eller bak skjema?
+- **Batteriet** → har eleven faktisk lest lærestoffet?
+- **Prikker** → i hvilke leksjoner mangler det innleveringer?
+- **Rød tekst** → totalt antall hoppede over innleveringer
+
+En elev med grønn sirkel, grønn firkant og 12 av 15 Fullført kan likevel ha tomme batterisøyler og røde prikker — og trenger oppfølging.
+
+---
+
 ## Hvordan fremdriften beregnes
 
 Oppgavene grupperes per leksjon basert på hvilken **modul** de tilhører i Canvas. Én modul = én leksjon. Alle innleveringstyper som ligger som element i en modul telles: oppgaver, New Quizzes og diskusjoner. Totalt antall leksjoner er fast satt til 15.

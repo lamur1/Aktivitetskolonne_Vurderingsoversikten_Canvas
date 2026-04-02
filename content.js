@@ -24,6 +24,9 @@
   let headerCellEl   = null;
   let loadingBarEl   = null;
   let isLoading      = false;
+  let moduleCompletionCache = {}; // sid -> [{id, name, total, completed}] | false
+  let moduleDeadlineMap     = {}; // modId -> latest due_at Date | null
+  let currentHoverSid = null;
 
   const COL_W = 130;
 
@@ -122,7 +125,10 @@
         border: 0.5px solid rgba(211, 209, 199, 0.7);
       }
       .cak-col-header:hover { background: #e6e4dc; }
-      .cak-cell:hover { filter: brightness(0.96); }
+      .cak-cell:hover {
+        background: rgba(59, 109, 17, 0.08) !important;
+        box-shadow: inset 3px 0 0 #3b6d11;
+      }
       .cak-ring {
         display: inline-block;
         width: 18px; height: 18px;
@@ -176,7 +182,7 @@
         background: #fff;
         border: 0.5px solid #b4b2a9;
         border-radius: 6px;
-        padding: 6px 11px;
+        padding: 6px 11px 10px;
         font-size: 11px;
         color: #5f5e5a;
         font-family: LatoWeb, Lato, sans-serif;
@@ -186,6 +192,7 @@
         display: none;
         box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         line-height: 1.8;
+        min-width: 180px;
       }
     `;
     document.head.appendChild(s);
@@ -205,8 +212,16 @@
     moveTip(e);
   }
   function moveTip(e) {
-    tooltipEl.style.left = (e.clientX + 14) + 'px';
-    tooltipEl.style.top  = (e.clientY - 38) + 'px';
+    const tipH = tooltipEl.offsetHeight;
+    const tipW = tooltipEl.offsetWidth;
+    const top  = (e.clientY + 14 + tipH > window.innerHeight)
+      ? e.clientY - tipH - 8
+      : e.clientY - 38;
+    const left = (e.clientX + 14 + tipW > window.innerWidth)
+      ? e.clientX - tipW - 14
+      : e.clientX + 14;
+    tooltipEl.style.left = left + 'px';
+    tooltipEl.style.top  = top  + 'px';
   }
   function hideTip() { tooltipEl.style.display = 'none'; }
 
@@ -235,6 +250,7 @@
 
     const cacheKey  = `cak_data_${courseId}`;
     const cacheTime = 60 * 60 * 1000; // 1 time
+    if (forceRefresh) moduleCompletionCache = {};
 
     // Sjekk cache først
     if (!forceRefresh) {
@@ -328,6 +344,13 @@
 
     const hasAnyDeadlines = [...moduleAssignmentIds].some(id => assignmentById[id]?.due_at);
 
+    // Bygg modId -> seneste due_at for stiplet visning av fremtidige leksjoner
+    moduleDeadlineMap = {};
+    Object.entries(moduleMap).forEach(([modId, assignments]) => {
+      const dates = assignments.map(a => a.due_at ? new Date(a.due_at) : null).filter(Boolean);
+      moduleDeadlineMap[modId] = dates.length > 0 ? new Date(Math.max(...dates)) : null;
+    });
+
     enrollments.forEach((e) => {
       const sid = String(e.user_id);
       if (!studentData[sid]) studentData[sid] = {};
@@ -358,6 +381,8 @@
 
       // Gruppert per modul (leksjon) — én modul = én leksjon
       const lessons = {};
+      let hoppetOver = 0;
+      const skippedPerMod = {};
       Object.entries(moduleMap).forEach(([modId, modAssignments]) => {
         modAssignments.forEach(asgn => {
           if (!asgn.due_at) return;
@@ -388,6 +413,14 @@
             if (due > now)  lessons[modId].ahead++;
           } else if (sub && sub.missing) {
             lessons[modId].missing++;
+          }
+
+          // Hoppet over: passert frist, ikke innlevert, ikke fritatt
+          if (due <= now &&
+              (!sub || (!sub.submitted_at && !sub.graded_at)) &&
+              (!sub || sub.workflow_state !== 'excused')) {
+            hoppetOver++;
+            skippedPerMod[modId] = (skippedPerMod[modId] || 0) + 1;
           }
         });
       });
@@ -433,6 +466,8 @@
         studentData[sid].godkjent        = godkjent;
         studentData[sid].leksjonerEtter  = leksjonerEtter;
         studentData[sid].venterVurdering = venterVurdering;
+        studentData[sid].hoppetOver      = hoppetOver;
+        studentData[sid].skippedPerMod   = skippedPerMod;
         studentData[sid].totalt          = 15;
       } else if (hasAnyDeadlines) {
         studentData[sid].deadlineDelta = null;
@@ -625,15 +660,37 @@
               iconsWrap.appendChild(tlWrap);
               cell.appendChild(iconsWrap);
 
-              const tipHtml = buildTooltip(
-                loginDays, subDays, delta,
-                data.deadlineCount, data.godkjent,
-                data.venterVurdering, data.totalt,
-                data.leksjonerEtter
-              );
-              cell.addEventListener('mouseenter', (e) => showTip(e, tipHtml, tooltipFontSize));
+              cell.addEventListener('mouseenter', async (e) => {
+                currentHoverSid = sid;
+                highlightRow(sid, true);
+                const d         = studentData[sid] || {};
+                const lDays     = daysSince(d.lastActivity);
+                const sDays     = daysSince(d.lastSubmission);
+
+                // Vis umiddelbart med "laster" for batteri
+                const cached = moduleCompletionCache.hasOwnProperty(sid)
+                  ? moduleCompletionCache[sid]
+                  : null; // null = laster
+                showTip(e, buildTooltip(lDays, sDays, d.deadlineDelta,
+                  d.deadlineCount, d.godkjent, d.venterVurdering,
+                  d.totalt, d.leksjonerEtter, cached, d.hoppetOver, d.skippedPerMod), tooltipFontSize);
+
+                // Hent moduldata hvis ikke cachet
+                if (!moduleCompletionCache.hasOwnProperty(sid)) {
+                  try {
+                    moduleCompletionCache[sid] = await fetchModuleCompletion(sid);
+                  } catch (err) {
+                    moduleCompletionCache[sid] = false;
+                  }
+                  if (currentHoverSid === sid && tooltipEl.style.display !== 'none') {
+                    tooltipEl.innerHTML = buildTooltip(lDays, sDays, d.deadlineDelta,
+                      d.deadlineCount, d.godkjent, d.venterVurdering,
+                      d.totalt, d.leksjonerEtter, moduleCompletionCache[sid], d.hoppetOver, d.skippedPerMod);
+                  }
+                }
+              });
               cell.addEventListener('mousemove',  moveTip);
-              cell.addEventListener('mouseleave', hideTip);
+              cell.addEventListener('mouseleave', () => { currentHoverSid = null; highlightRow(sid, false); hideTip(); });
             }
 
             cellCache.set(key, cell);
@@ -862,7 +919,96 @@
     return '✗';
   }
 
-  function buildTooltip(loginDays, subDays, delta, count, godkjent, venterVurdering, totalt, leksjonerEtter) {
+  function highlightRow(sid, on) {
+    const frozenCanvas = findFrozenCanvas();
+    if (!frozenCanvas) return;
+    for (const row of frozenCanvas.querySelectorAll('.slick-row')) {
+      if (extractStudentId(row) === sid) {
+        const cells = row.querySelectorAll('.slick-cell');
+        cells.forEach((cell, idx) => {
+          if (on) {
+            cell.style.backgroundColor = 'rgba(59, 109, 17, 0.07)';
+          } else {
+            // Gjenopprett trafikklys-farge på første celle hvis rowHighlight er aktiv
+            if (idx === 0 && cfg.rowHighlight) {
+              const data = studentData[sid] || {};
+              cell.style.backgroundColor = activityCellTint(data.leksjonerEtter, data.hasDeadlines) || '';
+            } else {
+              cell.style.backgroundColor = '';
+            }
+          }
+        });
+        break;
+      }
+    }
+  }
+
+  async function fetchModuleCompletion(sid) {
+    const courseId = getCourseId();
+    const modules  = await paginate(
+      `/api/v1/courses/${courseId}/modules?include[]=items&student_id=${sid}&per_page=100`
+    );
+    return modules.map(mod => {
+      const mustView  = (mod.items || []).filter(i =>
+        i.completion_requirement && i.completion_requirement.type === 'must_view'
+      );
+      const completed = mustView.filter(i => i.completion_requirement.completed).length;
+      return { id: String(mod.id), name: mod.name, total: mustView.length, completed };
+    });
+  }
+
+  function makeBatterySvg(modules, skippedPerMod = {}) {
+    const barW = 7, gap = 3, maxH = 36, totalH = 36;
+    const now  = new Date();
+    const n    = modules.length;
+    const W    = n * (barW + gap) - gap;
+    let bars   = '';
+
+    modules.forEach((mod, i) => {
+      const x        = i * (barW + gap);
+      const due      = moduleDeadlineMap[mod.id] || null;
+      const isFuture = !due || due > now;
+
+      if (isFuture) {
+        // Stiplet kontur — ikke startet ennå
+        bars += `<rect x="${x}" y="0" width="${barW}" height="${maxH}" rx="2"
+          fill="none" stroke="#c8c6be" stroke-width="1" stroke-dasharray="2,2"/>`;
+      } else {
+        // Passert frist — fargekod etter visningsprosent
+        const bgColor = mod.total === 0 ? '#e0dfd8' : '#f0efe8';
+        bars += `<rect x="${x}" y="0" width="${barW}" height="${maxH}" rx="2"
+          fill="${bgColor}" stroke="#d3d1c7" stroke-width="0.5"/>`;
+
+        if (mod.total > 0 && mod.completed > 0) {
+          const pct   = mod.completed / mod.total;
+          const fillH = Math.max(3, Math.round(pct * maxH));
+          const color = pct >= 1 ? '#639922' : pct >= 0.5 ? '#ba7517' : '#c62828';
+          bars += `<rect x="${x}" y="${maxH - fillH}" width="${barW}" height="${fillH}" rx="2"
+            fill="${color}"/>`;
+        }
+      }
+    });
+
+    // Prikker for hoppede over innleveringer — én prikk per manglende, stablet fra bunn
+    modules.forEach((mod, i) => {
+      const count = skippedPerMod[mod.id] || 0;
+      if (count === 0) return;
+      const x   = i * (barW + gap) + barW / 2;
+      const r   = 2;
+      const gap2 = 1;
+      const maxDots = Math.floor(maxH / (r * 2 + gap2));
+      const dots = Math.min(count, maxDots);
+      for (let d = 0; d < dots; d++) {
+        const cy = totalH - r - d * (r * 2 + gap2);
+        bars += `<circle cx="${x}" cy="${cy}" r="${r}" fill="white" stroke="#3a3a3a" stroke-width="0.8"/>`;
+      }
+    });
+
+    return `<svg width="${W}" height="${totalH}" viewBox="0 0 ${W} ${totalH}"
+      style="display:block;margin-top:8px">${bars}</svg>`;
+  }
+
+  function buildTooltip(loginDays, subDays, delta, count, godkjent, venterVurdering, totalt, leksjonerEtter, batteryModules, hoppetOver, skippedPerMod) {
     const l = loginDays === null
       ? 'Aldri innlogget'
       : `Innlogget: ${loginDays} dag${loginDays === 1 ? '' : 'er'} siden`;
@@ -891,7 +1037,24 @@
         d = 'I rute — ingen leksjoner under terskel';
       }
     }
-    return `${l}<br>${s}<br>${d}`;
+    let battery = '';
+    if (batteryModules === null) {
+      battery = '<div style="margin-top:7px;border-top:0.5px solid #e8e6de;padding-top:6px;color:#b4b2a9;font-size:10px;">Laster lærestoffvisning…</div>';
+    } else if (batteryModules && batteryModules.length > 0) {
+      const relevant = batteryModules.filter(m => m.total > 0);
+      if (relevant.length > 0) {
+        battery = '<div style="margin-top:7px;border-top:0.5px solid #e8e6de;padding-top:5px">'
+          + '<div style="font-size:10px;color:#888780;margin-bottom:4px">Lærestoff sett per leksjon</div>'
+          + makeBatterySvg(batteryModules, skippedPerMod || {})
+          + '</div>';
+      }
+    }
+
+    const skipped = hoppetOver > 0
+      ? `<br><span style="color:#c62828">${hoppetOver} innlevering${hoppetOver === 1 ? '' : 'er'} hoppet over</span>`
+      : '';
+
+    return `${l}<br>${s}<br>${d}${skipped}${battery}`;
   }
 
   function updateCacheStatus(date) {
