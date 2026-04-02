@@ -13,8 +13,6 @@ Første gang du åpner en klasse henter utvidelsen data fra Canvas API i to omga
 
 Når alt er lastet caches dataene lokalt i 1 time. Neste gang du åpner samme klasse vises alt umiddelbart.
 
-> **Tips:** Klikk **📌 Fest fanen** i innstillingspanelet for å feste vurderingsoversikten som en pinned tab i Chrome. Da kan ikke fanen lukkes ved et uhell med Ctrl+W, og den ligger alltid klar ytterst til venstre i nettleseren.
-
 ---
 
 ## Installasjon
@@ -107,13 +105,17 @@ Når fargemerking er slått på får Canvas-radene en dempet trafikklys-farge ba
 
 ## Slik tolker du tallene — viktig å vite
 
-### Batterigrafikkens er det mest direkte signalet
+### Lærestoffgrafikken er det mest direkte signalet
 
-Hover-vinduet viser et batteridiagram med én søyle per leksjon. Høyden på søylen viser hvor stor andel av lærebogsidene (Canvas-sider med «Vist»-krav) eleven faktisk har åpnet. **Dette er det mest pålitelige signalet på om eleven har jobbet med lærestoffet** — det avslører elever som leverer inn via gjøremålslisten uten å ha gått innom sidene med lærestoff.
+Hover-vinduet viser en vertikal stolpegraf med én søyle per leksjon — samme prinsipp som fremdriftsindikatoren i kolonnen, rotert 90°. En midtlinje skiller positiv og negativ sone.
 
-Stiplete søyler = leksjoner som ikke er påbegynt ennå (fristen er ikke passert).
+**Grønn søyle oppover** = andel av Canvas-sider med «Vist»-krav som eleven faktisk har åpnet. Intensiteten øker mot 100%. **Dette er det mest pålitelige signalet på om eleven har jobbet med lærestoffet** — det avslører elever som leverer inn via gjøremålslisten uten å ha gått innom sidene med lærestoff.
 
-Hvite prikker på søylene = antall innleveringer som er hoppet over i den leksjonen.
+**Rød søyle nedover** = leksjonen har passert frist og eleven har ikke åpnet en eneste side. Så snart én side åpnes, forsvinner den røde søylen og grønn søyle begynner å vokse.
+
+**Stiplet grå søyle nedover** = leksjonen er ikke påbegynt, men fristen er ennå ikke passert.
+
+**Hvite sirkler med sort kant** = antall innleveringer med passert frist som mangler i den leksjonen. Sirklene vises i negativ sone og forsvinner etter hvert som oppgavene leveres.
 
 ### «Fullført» er ikke det samme som «ferdig»
 

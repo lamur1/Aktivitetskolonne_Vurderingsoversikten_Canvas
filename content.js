@@ -17,6 +17,7 @@
   let overlayEl = null;
   let tooltipEl = null;
   let tooltipFontSize = null;
+  let lastTipEvent = null;
   let attachedViewport = null;
   let isUpdating = false;
   let sortActive  = false;
@@ -209,14 +210,13 @@
     tooltipEl.innerHTML = html;
     if (fontSize) tooltipEl.style.fontSize = fontSize;
     tooltipEl.style.display = 'block';
+    lastTipEvent = e;
     moveTip(e);
   }
   function moveTip(e) {
     const tipH = tooltipEl.offsetHeight;
     const tipW = tooltipEl.offsetWidth;
-    const top  = (e.clientY + 14 + tipH > window.innerHeight)
-      ? e.clientY - tipH - 8
-      : e.clientY - 38;
+    const top  = e.clientY - tipH - 8;
     const left = (e.clientX + 14 + tipW > window.innerWidth)
       ? e.clientX - tipW - 14
       : e.clientX + 14;
@@ -686,6 +686,7 @@
                     tooltipEl.innerHTML = buildTooltip(lDays, sDays, d.deadlineDelta,
                       d.deadlineCount, d.godkjent, d.venterVurdering,
                       d.totalt, d.leksjonerEtter, moduleCompletionCache[sid], d.hoppetOver, d.skippedPerMod);
+                    if (lastTipEvent) moveTip(lastTipEvent);
                   }
                 }
               });
@@ -958,54 +959,66 @@
   }
 
   function makeBatterySvg(modules, skippedPerMod = {}) {
-    const barW = 7, gap = 3, maxH = 36, totalH = 36;
+    const upH = 55, downH = 55, totalH = upH + downH, midY = upH;
+    const barW = 7, gap = 11;
     const now  = new Date();
     const n    = modules.length;
     const W    = n * (barW + gap) - gap;
-    let bars   = '';
+
+    const defs = `<defs>
+      <linearGradient id="cak-v-green" x1="0" x2="0" y1="${midY}" y2="0" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="#97c459"/>
+        <stop offset="100%" stop-color="#3b6d11"/>
+      </linearGradient>
+      <linearGradient id="cak-v-red" x1="0" x2="0" y1="${midY}" y2="${totalH}" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="#e57373"/>
+        <stop offset="100%" stop-color="#a32d2d"/>
+      </linearGradient>
+    </defs>`;
+
+    let bars = '';
+
+    // 100%-markering øverst (svak stiplet linje)
+    bars += `<line x1="0" y1="1" x2="${W}" y2="1" stroke="#d3d1c7" stroke-width="0.5" stroke-dasharray="2,3"/>`;
+    // Midtlinje / nullpunkt
+    bars += `<line x1="0" y1="${midY}" x2="${W}" y2="${midY}" stroke="#888780" stroke-width="1"/>`;
 
     modules.forEach((mod, i) => {
-      const x        = i * (barW + gap);
-      const due      = moduleDeadlineMap[mod.id] || null;
-      const isFuture = !due || due > now;
+      const x         = i * (barW + gap);
+      const due       = moduleDeadlineMap[mod.id] || null;
+      const isPastDue = due && due <= now;
+      const isStarted = mod.total > 0 && mod.completed > 0;
 
-      if (isFuture) {
-        // Stiplet kontur — ikke startet ennå
-        bars += `<rect x="${x}" y="0" width="${barW}" height="${maxH}" rx="2"
-          fill="none" stroke="#c8c6be" stroke-width="1" stroke-dasharray="2,2"/>`;
+      if (isStarted) {
+        // Grønn bar vokser oppover — intensitet øker mot 100%
+        const pct   = mod.completed / mod.total;
+        const fillH = Math.max(2, Math.round(pct * upH));
+        bars += `<rect x="${x}" y="${midY - fillH}" width="${barW}" height="${fillH}" rx="2" fill="url(#cak-v-green)"/>`;
+      } else if (isPastDue) {
+        // Passert frist, ikke påbegynt — rød bar full høyde ned
+        bars += `<rect x="${x}" y="${midY}" width="${barW}" height="${downH}" rx="2" fill="url(#cak-v-red)"/>`;
       } else {
-        // Passert frist — fargekod etter visningsprosent
-        const bgColor = mod.total === 0 ? '#e0dfd8' : '#f0efe8';
-        bars += `<rect x="${x}" y="0" width="${barW}" height="${maxH}" rx="2"
-          fill="${bgColor}" stroke="#d3d1c7" stroke-width="0.5"/>`;
-
-        if (mod.total > 0 && mod.completed > 0) {
-          const pct   = mod.completed / mod.total;
-          const fillH = Math.max(3, Math.round(pct * maxH));
-          const color = pct >= 1 ? '#639922' : pct >= 0.5 ? '#ba7517' : '#c62828';
-          bars += `<rect x="${x}" y="${maxH - fillH}" width="${barW}" height="${fillH}" rx="2"
-            fill="${color}"/>`;
-        }
+        // Fremtidig / ikke påbegynt — stiplet grå kontur ned
+        bars += `<rect x="${x}" y="${midY}" width="${barW}" height="${downH}" rx="2" fill="none" stroke="#c8c6be" stroke-width="1" stroke-dasharray="3,2"/>`;
       }
     });
 
-    // Prikker for hoppede over innleveringer — én prikk per manglende, stablet fra bunn
+    // Hvite sirkler for manglende innleveringer — stables nedover fra midtlinjen
     modules.forEach((mod, i) => {
       const count = skippedPerMod[mod.id] || 0;
       if (count === 0) return;
-      const x   = i * (barW + gap) + barW / 2;
-      const r   = 2;
-      const gap2 = 1;
-      const maxDots = Math.floor(maxH / (r * 2 + gap2));
-      const dots = Math.min(count, maxDots);
+      const cx     = i * (barW + gap) + barW / 2;
+      const r      = 3, dotGap = 2;
+      const maxDots = Math.floor(downH / (r * 2 + dotGap));
+      const dots    = Math.min(count, maxDots);
       for (let d = 0; d < dots; d++) {
-        const cy = totalH - r - d * (r * 2 + gap2);
-        bars += `<circle cx="${x}" cy="${cy}" r="${r}" fill="white" stroke="#3a3a3a" stroke-width="0.8"/>`;
+        const cy = midY + r + 2 + d * (r * 2 + dotGap);
+        bars += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="white" stroke="#3a3a3a" stroke-width="0.8"/>`;
       }
     });
 
     return `<svg width="${W}" height="${totalH}" viewBox="0 0 ${W} ${totalH}"
-      style="display:block;margin-top:8px">${bars}</svg>`;
+      style="display:block;margin-top:8px">${defs}${bars}</svg>`;
   }
 
   function buildTooltip(loginDays, subDays, delta, count, godkjent, venterVurdering, totalt, leksjonerEtter, batteryModules, hoppetOver, skippedPerMod) {
@@ -1051,7 +1064,7 @@
     }
 
     const skipped = hoppetOver > 0
-      ? `<br><span style="color:#c62828">${hoppetOver} innlevering${hoppetOver === 1 ? '' : 'er'} hoppet over</span>`
+      ? `<br><span style="color:#c62828"><svg width="9" height="9" viewBox="0 0 9 9" style="vertical-align:middle;margin-right:3px"><circle cx="4.5" cy="4.5" r="3.5" fill="white" stroke="#3a3a3a" stroke-width="1"/></svg>${hoppetOver} innlevering${hoppetOver === 1 ? '' : 'er'} med utløpt frist</span>`
       : '';
 
     return `${l}<br>${s}<br>${d}${skipped}${battery}`;

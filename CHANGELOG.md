@@ -1,5 +1,23 @@
 # Endringslogg
 
+## 02.04.26 — Lærestoffgrafikk i hover-tooltip
+
+### Endret
+- Batteridiagram erstattet med vertikal divergerende stolpegraf — samme fargesystem og prinsipp som fremdriftsindikatoren, rotert 90°
+- Midtlinje skiller positiv sone (grønn, lærestoff åpnet) og negativ sone (rød/stiplet, ikke påbegynt)
+- Grønn søyle: vokser oppover, intensitet øker mot 100% (`#97c459 → #3b6d11` gradient)
+- Rød søyle: full høyde nedover for leksjoner med passert frist som ikke er påbegynt (`#e57373 → #a32d2d` gradient)
+- Stiplet grå søyle: fremtidige leksjoner som ikke er påbegynt
+- Hvite sirkler med sort kant stables nedover i negativ sone — viser manglende innleveringer per leksjon
+- Søylebredde: 7px, mellomrom: 11px, totalhøyde: 110px (55 opp + 55 ned)
+- Sirkel-symbol lagt til foran rød «X innleveringer hoppet over»-tekst
+- Tooltip reposisjoneres korrekt etter at batteridataen laster ferdig (lagrer siste museposisjon)
+
+### Fikset
+- Tooltip klippet ved skjermkant nederst når batterigrafikkens høyde økte ved lazy-load
+
+---
+
 ## 25.03.26 — Aktiv utviklingsdag
 
 ### Lagt til

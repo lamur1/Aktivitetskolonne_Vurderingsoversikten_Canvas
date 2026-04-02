@@ -81,9 +81,7 @@ Cache lagres i `chrome.storage.local` med nøkkel `cak_data_{courseId}` og tidss
 
 Skolen bruker Canvas "missing"-flagget for oppgaver som ikke er levert etter fristen. Vi baserer oss på dette fremfor å beregne forsinkelse selv.
 
-Oppgaver grupperes per leksjon basert på tittelprefix: `/L\s*(\d+)/i`
-
-Eksempel: `"L 23 – Innleveringsoppgave"` → leksjon `"23"`
+Oppgaver grupperes per **modul-ID** — én Canvas-modul = én leksjon. Tidligere regex-basert matching på oppgavenavn (`/L\s*(\d+)/i`) er fjernet. Modulbasert gruppering er mer robust og støtter alle oppgavetyper (Assignment, New Quizzes, Discussion) uten navnekonvensjonskrav.
 
 ### Algoritme
 
@@ -200,8 +198,6 @@ Viktig: Observer ignorerer mutasjoner som stammer fra vårt eget overlay (sjekke
 - Kolonnen henger av og til ved navigering mellom kurs. "Oppdater nå" løser det.
 
 ### Leksjonslogikk
-- Regex `/L\s*(\d+)/i` matcher ikke `L-23` (bindestrek). Enkel fix: `/L[\s-]*(\d+)/i`
-- Oppgaver uten `L`-prefix havner i `__ukjent__`-leksjon og kan påvirke beregningen uventet
 - Frivillige quizer som er levert teller ikke positivt selv om `countVoluntary` er på, hvis `countQuizzes` er av
 
 ### Sortering
