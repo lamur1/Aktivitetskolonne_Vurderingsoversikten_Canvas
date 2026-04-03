@@ -395,7 +395,15 @@
 
           if (due <= now) lessons[modId].pastDue++;
 
-          if (sub && (sub.submitted_at || sub.graded_at)) {
+          // Felles mangler-sjekk: Canvas sin missing-status er autoritativ.
+          // Dekker både automatisk (frist passert) og manuelt (underkjent av lærer).
+          const isExcused = sub?.workflow_state === 'excused';
+          const isMissing = !isExcused && (
+            (sub && sub.missing === true) ||
+            (!sub && due <= now)           // defensiv fallback: ingen sub-objekt
+          );
+
+          if (!isMissing && sub && (sub.submitted_at || sub.graded_at)) {
             lessons[modId].delivered++;
             const isGraded = !!(
               sub.workflow_state === 'graded' ||
@@ -411,14 +419,8 @@
             if (isFullfort) lessons[modId].fullfort++;
             if (!isGraded)  lessons[modId].venter++;
             if (due > now)  lessons[modId].ahead++;
-          } else if (sub && sub.missing) {
+          } else if (isMissing) {
             lessons[modId].missing++;
-          }
-
-          // Hoppet over: passert frist, ikke innlevert, ikke fritatt
-          if (due <= now &&
-              (!sub || (!sub.submitted_at && !sub.graded_at)) &&
-              (!sub || sub.workflow_state !== 'excused')) {
             hoppetOver++;
             skippedPerMod[modId] = (skippedPerMod[modId] || 0) + 1;
           }
@@ -958,15 +960,27 @@
     });
   }
 
-  function makeBatterySvg(modules, skippedPerMod = {}) {
-    const upH = 55, downH = 55, totalH = upH + downH, midY = upH;
+  function detectSemesterOffset() {
+    const text = [
+      document.title,
+      document.querySelector('#breadcrumbs')?.textContent,
+      document.querySelector('.context_title')?.textContent,
+    ].filter(Boolean).join(' ').toLowerCase();
+    return /vår|vaar/.test(text) ? 15 : 0;
+  }
+
+  function makeBatterySvg(modules, skippedPerMod = {}, lessonOffset = 0) {
+    const labelH = 16;  // plass til leksjonsnummer øverst (45°-rotert tekst)
+    const upH = 55, downH = 55;
+    const totalH = labelH + upH + downH;
+    const midY   = labelH + upH;
     const barW = 7, gap = 11;
     const now  = new Date();
     const n    = modules.length;
     const W    = n * (barW + gap) - gap;
 
     const defs = `<defs>
-      <linearGradient id="cak-v-green" x1="0" x2="0" y1="${midY}" y2="0" gradientUnits="userSpaceOnUse">
+      <linearGradient id="cak-v-green" x1="0" x2="0" y1="${midY}" y2="${labelH}" gradientUnits="userSpaceOnUse">
         <stop offset="0%" stop-color="#97c459"/>
         <stop offset="100%" stop-color="#3b6d11"/>
       </linearGradient>
@@ -979,15 +993,20 @@
     let bars = '';
 
     // 100%-markering øverst (svak stiplet linje)
-    bars += `<line x1="0" y1="1" x2="${W}" y2="1" stroke="#d3d1c7" stroke-width="0.5" stroke-dasharray="2,3"/>`;
+    bars += `<line x1="0" y1="${labelH + 1}" x2="${W}" y2="${labelH + 1}" stroke="#d3d1c7" stroke-width="0.5" stroke-dasharray="2,3"/>`;
     // Midtlinje / nullpunkt
     bars += `<line x1="0" y1="${midY}" x2="${W}" y2="${midY}" stroke="#888780" stroke-width="1"/>`;
 
     modules.forEach((mod, i) => {
-      const x         = i * (barW + gap);
+      const x   = i * (barW + gap);
+      const cx  = x + barW / 2;
+      const num = i + 1 + lessonOffset;
       const due       = moduleDeadlineMap[mod.id] || null;
       const isPastDue = due && due <= now;
       const isStarted = mod.total > 0 && mod.completed > 0;
+
+      // Leksjonsnummer — rotert loddrett i labelH-sonen over søylen
+      bars += `<text transform="rotate(-45,${cx},${labelH / 2})" x="${cx}" y="${labelH / 2}" font-size="7" fill="#888780" text-anchor="middle" dominant-baseline="central">${num}</text>`;
 
       if (isStarted) {
         // Grønn bar vokser oppover — intensitet øker mot 100%
@@ -1058,13 +1077,13 @@
       if (relevant.length > 0) {
         battery = '<div style="margin-top:7px;border-top:0.5px solid #e8e6de;padding-top:5px">'
           + '<div style="font-size:10px;color:#888780;margin-bottom:4px">Lærestoff sett per leksjon</div>'
-          + makeBatterySvg(batteryModules, skippedPerMod || {})
+          + makeBatterySvg(batteryModules, skippedPerMod || {}, detectSemesterOffset())
           + '</div>';
       }
     }
 
     const skipped = hoppetOver > 0
-      ? `<br><span style="color:#c62828"><svg width="9" height="9" viewBox="0 0 9 9" style="vertical-align:middle;margin-right:3px"><circle cx="4.5" cy="4.5" r="3.5" fill="white" stroke="#3a3a3a" stroke-width="1"/></svg>${hoppetOver} innlevering${hoppetOver === 1 ? '' : 'er'} med utløpt frist</span>`
+      ? `<br><span style="color:#c62828"><svg width="9" height="9" viewBox="0 0 9 9" style="vertical-align:middle;margin-right:3px"><circle cx="4.5" cy="4.5" r="3.5" fill="white" stroke="#3a3a3a" stroke-width="1"/></svg>${hoppetOver} innlevering${hoppetOver === 1 ? '' : 'er'} med status Mangler</span>`
       : '';
 
     return `${l}<br>${s}<br>${d}${skipped}${battery}`;
