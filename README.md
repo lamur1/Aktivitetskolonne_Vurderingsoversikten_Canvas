@@ -89,6 +89,28 @@ På etterskudd — 3 leksjoner etter skoleruta
 
 **"Fullført"** teller kun leksjoner hvor lærer har gitt tilbakemelding og satt status til Fullført. Innleveringer som er levert men ikke vurdert ennå vises på egen linje som «venter vurdering». Elever som er etter skoleruta får en egen linje som viser hvor mange leksjoner de henger etter.
 
+### Kopiering og nedlasting
+
+Når du holder musen over en celle i aktivitetskolonnen vises to ikoner:
+
+**Kopieringsikon (øverst i cellen)** — kopierer elevens status til utklippstavlen. Innholdet er:
+- Innlogging, innlevering og fremdriftsstatus som tekst
+- Liste over innleveringsoppgaver med passert frist, med lenker direkte til den aktuelle oppgaven i Canvas
+
+Klipper du inn i en e-postklient eller meldingstjeneste som støtter HTML, vises lenketeksten som klikkbare oppgavenavn med fristen ved siden av. I ren tekstvisning vises URL-en på egen linje under oppgavenavnet.
+
+**Nedlastingsikon (nederst i cellen)** — laster ned et PNG-bilde med et elevkort. Kortet inneholder:
+- Elevens navn
+- Status for innlogging, innlevering og fremdrift
+- Liste over manglende innleveringer med frist (som ren tekst — lenker vises ikke i PNG)
+- Batteridiagrammet (lærestoff sett per leksjon)
+
+Filnavnet settes automatisk til elevens navn.
+
+Hvilke oppgaver som tas med (kopieringsikon og nedlastingsikon) styres av innstillingen **Kopieringslenker** i popup-panelet: begge typer, kun automatisk rettet, eller kun lærergodkjente.
+
+---
+
 ### Fargemerking av rader
 
 Når fargemerking er slått på får Canvas-radene en dempet trafikklys-farge basert på leksjonsfremdrift:

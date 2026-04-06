@@ -3,7 +3,7 @@
   "name": "Canvas Aktivitetskolonne",
   "version": "1.0",
   "description": "Viser innloggings- og innleveringsaktivitet direkte i Canvas vurderingsoversikt.",
-  "permissions": ["storage", "tabs"],
+  "permissions": ["storage", "tabs", "clipboardWrite"],
   "host_permissions": ["*://*.instructure.com/*"],
   "content_scripts": [
     {

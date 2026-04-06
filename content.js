@@ -9,7 +9,8 @@
     submissionYellow: 21,
     lessonThreshold: 50,
     rowHighlight: false,
-    gradingMode: 'teacher'
+    gradingMode: 'teacher',
+    copyLinkMode: 'both'
   };
 
   let cfg = { ...DEFAULTS };
@@ -28,6 +29,13 @@
   let moduleCompletionCache = {}; // sid -> [{id, name, total, completed}] | false
   let moduleDeadlineMap     = {}; // modId -> latest due_at Date | null
   let currentHoverSid = null;
+  let studentNames = {}; // sid -> name
+  let moduleMapGlobal = {}; // modId -> [assignments] (modul-nivå for kopieringslenker)
+  let moduleNameMapGlobal = {}; // modId -> name
+
+  const COPY_SVG  = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="0.5" width="8.5" height="8.5" rx="1.3"/><rect x="0.5" y="4" width="8.5" height="8.5" rx="1.3" fill="white" stroke="currentColor"/></svg>';
+  const CHECK_SVG = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="#3b6d11" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,7 5,10.5 11.5,2.5"/></svg>';
+  const SAVE_SVG  = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"><line x1="6.5" y1="1.5" x2="6.5" y2="8.5"/><polyline points="4,6.5 6.5,9 9,6.5"/><line x1="2" y1="11.5" x2="11" y2="11.5"/></svg>';
 
   const COL_W = 130;
 
@@ -70,7 +78,8 @@
 
   // ─── CSS ──────────────────────────────────────────────────────────────────
   function injectStyles() {
-    if (document.getElementById('cak-styles')) return;
+    const existing = document.getElementById('cak-styles');
+    if (existing) existing.remove();
     const s = document.createElement('style');
     s.id = 'cak-styles';
     s.textContent = `
@@ -195,13 +204,36 @@
         line-height: 1.8;
         min-width: 180px;
       }
+      .cak-copy-btn, .cak-save-btn {
+        position: absolute;
+        right: 4px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 15px;
+        height: 15px;
+        border-radius: 3px;
+        color: #c0beb5;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity .15s, color .15s, background .15s;
+        pointer-events: all;
+      }
+      .cak-copy-btn { top: 3px; }
+      .cak-save-btn { bottom: 3px; }
+      .cak-cell:hover .cak-copy-btn,
+      .cak-cell:hover .cak-save-btn { opacity: 1; }
+      .cak-copy-btn:hover { color: #5f5e5a !important; background: rgba(0,0,0,0.06); }
+      .cak-save-btn:hover  { color: #3b6d11  !important; background: rgba(0,0,0,0.06); }
+      .cak-copy-btn.cak-copied { color: #3b6d11 !important; opacity: 1; }
     `;
     document.head.appendChild(s);
   }
 
   // ─── Tooltip ──────────────────────────────────────────────────────────────
   function createTooltip() {
-    if (document.getElementById('cak-tooltip')) return;
+    const existing = document.getElementById('cak-tooltip');
+    if (existing) existing.remove(); // fjern fra forrige IIFE-kjøring
     tooltipEl = document.createElement('div');
     tooltipEl.id = 'cak-tooltip';
     document.body.appendChild(tooltipEl);
@@ -227,7 +259,8 @@
 
   // ─── Overlay ──────────────────────────────────────────────────────────────
   function createOverlay() {
-    if (overlayEl) return;
+    const existing = document.getElementById('cak-overlay');
+    if (existing) { existing.remove(); overlayEl = null; attachedViewport = null; }
     overlayEl = document.createElement('div');
     overlayEl.id = 'cak-overlay';
     document.body.appendChild(overlayEl);
@@ -320,10 +353,20 @@
       }
     });
 
+    // Hent elevnavn fra enrollment-data (Canvas inkluderer user-objekt som standard)
+    enrollments.forEach((e) => {
+      const sid = String(e.user_id);
+      if (e.user && e.user.name && !studentNames[sid]) {
+        studentNames[sid] = e.user.name;
+      }
+    });
+
     // Bygg moduleMap: modId → [assignment, ...] — inkluderer oppgaver, NQ og diskusjoner
-    const moduleMap = {};
+    moduleMapGlobal = {};
+    moduleNameMapGlobal = {};
     const moduleAssignmentIds = new Set();
     modules.forEach(mod => {
+      moduleNameMapGlobal[String(mod.id)] = mod.name;
       const modAssignments = [];
       (mod.items || []).forEach(item => {
         let asgn = null;
@@ -338,7 +381,7 @@
         }
       });
       if (modAssignments.length > 0) {
-        moduleMap[String(mod.id)] = modAssignments;
+        moduleMapGlobal[String(mod.id)] = modAssignments;
       }
     });
 
@@ -346,7 +389,7 @@
 
     // Bygg modId -> seneste due_at for stiplet visning av fremtidige leksjoner
     moduleDeadlineMap = {};
-    Object.entries(moduleMap).forEach(([modId, assignments]) => {
+    Object.entries(moduleMapGlobal).forEach(([modId, assignments]) => {
       const dates = assignments.map(a => a.due_at ? new Date(a.due_at) : null).filter(Boolean);
       moduleDeadlineMap[modId] = dates.length > 0 ? new Date(Math.max(...dates)) : null;
     });
@@ -383,7 +426,8 @@
       const lessons = {};
       let hoppetOver = 0;
       const skippedPerMod = {};
-      Object.entries(moduleMap).forEach(([modId, modAssignments]) => {
+      const missingByMod = {};
+      Object.entries(moduleMapGlobal).forEach(([modId, modAssignments]) => {
         modAssignments.forEach(asgn => {
           if (!asgn.due_at) return;
           if (!lessons[modId]) lessons[modId] = { total: 0, delivered: 0, missing: 0, ahead: 0, fullfort: 0, venter: 0, pastDue: 0 };
@@ -423,6 +467,14 @@
             lessons[modId].missing++;
             hoppetOver++;
             skippedPerMod[modId] = (skippedPerMod[modId] || 0) + 1;
+            // Spor hvilke spesifikke oppgaver som mangler (for kopieringslenker)
+            if (!missingByMod[modId]) missingByMod[modId] = [];
+            missingByMod[modId].push({
+              id: String(asgn.id),
+              name: asgn.name,
+              dueAt: asgn.due_at,
+              isAutoGraded: !!(asgn.submission_types || []).includes('online_quiz')
+            });
           }
         });
       });
@@ -470,6 +522,7 @@
         studentData[sid].venterVurdering = venterVurdering;
         studentData[sid].hoppetOver      = hoppetOver;
         studentData[sid].skippedPerMod   = skippedPerMod;
+        studentData[sid].missingByMod    = missingByMod;
         studentData[sid].totalt          = 15;
       } else if (hasAnyDeadlines) {
         studentData[sid].deadlineDelta = null;
@@ -587,10 +640,15 @@
         }
 
         // Bygg liste over synlige rader med posisjon og student-ID
+        // Ekstraher navn fra DOM som fallback dersom API-data mangler
         const rowItems = [];
         rows.forEach((row) => {
           const sid    = extractStudentId(row);
           const rowTop = parseInt(row.style.top, 10) || 0;
+          if (sid && !studentNames[sid]) {
+            const link = row.querySelector('a[href*="/grades/"]') || row.querySelector('a[href*="/users/"]');
+            if (link) studentNames[sid] = link.textContent.trim();
+          }
           rowItems.push({ sid, rowTop, row });
         });
 
@@ -661,6 +719,61 @@
               iconsWrap.appendChild(mark);
               iconsWrap.appendChild(tlWrap);
               cell.appendChild(iconsWrap);
+
+              // Kopieringsknapp — vises ved hover, absolutt posisjonert til høyre i cellen
+              const copyBtn = document.createElement('span');
+              copyBtn.className = 'cak-copy-btn';
+              copyBtn.title = 'Kopier til utklippstavlen';
+              copyBtn.innerHTML = COPY_SVG;
+              copyBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const d       = studentData[sid] || {};
+                const lDays   = daysSince(d.lastActivity);
+                const sDays   = daysSince(d.lastSubmission);
+                const name    = studentNames[sid] || '';
+                const batData = moduleCompletionCache.hasOwnProperty(sid)
+                  ? moduleCompletionCache[sid] : null;
+                const { plain, html } = buildCopyContent(
+                  name, lDays, sDays, d.deadlineDelta, d.deadlineCount,
+                  d.godkjent, d.venterVurdering, d.totalt, d.leksjonerEtter,
+                  d.hoppetOver, d.missingByMod || {}, batData, d.skippedPerMod || {}
+                );
+                const clipItems = { 'text/plain': new Blob([plain], { type: 'text/plain' }) };
+                if (html) clipItems['text/html'] = new Blob([html], { type: 'text/html' });
+                navigator.clipboard.write([new ClipboardItem(clipItems)]).then(() => {
+                  copyBtn.innerHTML = CHECK_SVG;
+                  copyBtn.classList.add('cak-copied');
+                  setTimeout(() => {
+                    copyBtn.innerHTML = COPY_SVG;
+                    copyBtn.classList.remove('cak-copied');
+                  }, 1800);
+                }).catch(() => {
+                  // Fallback: plain text
+                  navigator.clipboard.writeText(plain).catch(() => {});
+                });
+              });
+              cell.appendChild(copyBtn);
+
+              // Nedlastingsknapp — lager PNG-kort av elevdata
+              const saveBtn = document.createElement('span');
+              saveBtn.className = 'cak-save-btn';
+              saveBtn.title = 'Last ned som bilde (PNG)';
+              saveBtn.innerHTML = SAVE_SVG;
+              saveBtn.addEventListener('click', async (ev) => {
+                ev.stopPropagation();
+                saveBtn.style.color = '#ba7517';
+                try {
+                  // Sørg for at batteridataen er lastet
+                  if (!moduleCompletionCache.hasOwnProperty(sid)) {
+                    moduleCompletionCache[sid] = await fetchModuleCompletion(sid).catch(() => false);
+                  }
+                  await downloadStudentCard(sid);
+                } catch (e) {
+                  console.warn('[CAK] PNG-nedlasting feilet:', e);
+                }
+                saveBtn.style.color = '';
+              });
+              cell.appendChild(saveBtn);
 
               cell.addEventListener('mouseenter', async (e) => {
                 currentHoverSid = sid;
@@ -1156,5 +1269,440 @@
     let t;
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
   }
+
+  // ─── PNG-kort nedlasting ──────────────────────────────────────────────────
+  async function downloadStudentCard(sid) {
+    const d      = studentData[sid] || {};
+    const name   = studentNames[sid] || 'Ukjent elev';
+    const lDays  = daysSince(d.lastActivity);
+    const sDays  = daysSince(d.lastSubmission);
+    const batData = moduleCompletionCache.hasOwnProperty(sid) ? moduleCompletionCache[sid] : null;
+
+    const svgStr = buildStudentCardSvg(
+      name, lDays, sDays, d.deadlineDelta, d.godkjent, d.totalt,
+      d.leksjonerEtter, d.venterVurdering, d.hoppetOver,
+      d.missingByMod || {}, batData, d.skippedPerMod || {}
+    );
+
+    const blob = await svgToPng(svgStr);
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `${name.replace(/[^a-zA-ZæøåÆØÅ0-9 ]/g, '_')}.png`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function xmlEsc(str) {
+    return String(str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function buildStudentCardSvg(name, lDays, sDays, delta, godkjent, totalt,
+      leksjonerEtter, venterVurdering, hoppetOver, missingByMod, batData, skippedPerMod) {
+    const W      = 340;
+    const pad    = 14;
+    const lineH  = 17;
+    const font   = 'Lato, Arial, sans-serif';
+    const courseId = getCourseId();
+    const linkMode = cfg.copyLinkMode || 'both';
+
+    // Tekstlinjer
+    const textLines = [];
+    textLines.push({ t: lDays === null ? 'Aldri innlogget' : `Innlogget: ${lDays} dag${lDays===1?'':'er'} siden`, col:'#5f5e5a' });
+    textLines.push({ t: sDays === null ? 'Aldri innlevert' : `Innlevert: ${sDays} dag${sDays===1?'':'er'} siden`, col:'#5f5e5a' });
+
+    if (delta === undefined && !totalt) {
+      textLines.push({ t: 'Ingen frister i kurset', col: '#888780' });
+    } else if (delta === null) {
+      textLines.push({ t: 'Har frister — ikke levert', col: '#a32d2d' });
+    } else if (totalt > 0) {
+      const terskel = cfg.lessonThreshold || 50;
+      const pending = venterVurdering || 0;
+      textLines.push({ t: `${godkjent} av ${totalt} leksjoner fullført · Terskel: ${terskel}%`, col:'#2c2c2a' });
+      if (pending > 0) textLines.push({ t: `${pending} innlevering${pending===1?'':'er'} venter vurdering`, col:'#888780' });
+      if (delta > 0)  textLines.push({ t: `I forkant — ${delta} leksjon${delta===1?'':'er'} med fremtidig frist`, col:'#3b6d11' });
+      if (leksjonerEtter >= 2) textLines.push({ t: `På etterskudd — ${leksjonerEtter} leksjon${leksjonerEtter===1?'':'er'} etter skoleruta`, col:'#a32d2d' });
+    } else {
+      textLines.push({ t: 'I rute — ingen leksjoner under terskel', col:'#3b6d11' });
+    }
+    if (hoppetOver > 0) textLines.push({ t: `${hoppetOver} innlevering${hoppetOver===1?'':'er'} med status Mangler`, col:'#c62828' });
+
+    // Manglende innleveringslenker som tekst (bare for SVG — lenker vises ikke i PNG)
+    const linkTextLines = [];
+    if (courseId && missingByMod && Object.keys(missingByMod).length > 0) {
+      Object.entries(missingByMod).forEach(([modId, asgns]) => {
+        const modName = moduleNameMapGlobal[modId] || `Leksjon ${modId}`;
+        asgns.forEach(a => {
+          const include = linkMode==='both' ? true : linkMode==='auto' ? a.isAutoGraded : !a.isAutoGraded;
+          if (!include) return;
+          const due = a.dueAt ? new Date(a.dueAt).toLocaleDateString('no-NO') : '';
+          linkTextLines.push({ t: `${modName}: ${a.name}${due ? ' ('+due+')' : ''}`, col:'#5f5e5a', size:10 });
+        });
+      });
+    }
+
+    // Batteridiagram
+    let batParts = null;
+    if (batData && batData.length > 0 && batData.some(m => m.total > 0)) {
+      const batSvg = makeBatterySvg(batData, skippedPerMod || {}, detectSemesterOffset());
+      batParts = extractSvgContent(batSvg);
+    }
+
+    // Beregn høyde
+    const headerH = 36;
+    const textH   = textLines.length * lineH + 10;
+    const linkH   = linkTextLines.length > 0 ? linkTextLines.length * 14 + 20 : 0;
+    const batH    = batParts ? batParts.height + 26 : 0;
+    const totalH  = headerH + textH + linkH + batH + pad + 20;
+
+    // Bygg SVG
+    let defs = '';
+    let body = '';
+
+    // Bakgrunn
+    body += `<rect width="${W}" height="${totalH}" fill="#fff" rx="7"/>`;
+    body += `<rect width="${W}" height="${totalH}" fill="none" stroke="#d3d1c7" stroke-width="1" rx="7"/>`;
+
+    // Topptekst (header)
+    body += `<rect width="${W}" height="${headerH}" fill="#eeecea" rx="7"/>`;
+    body += `<rect y="${headerH-12}" width="${W}" height="12" fill="#eeecea"/>`;
+    body += `<line x1="0" y1="${headerH}" x2="${W}" y2="${headerH}" stroke="#c0beb5" stroke-width="0.5"/>`;
+    body += `<text x="${pad}" y="22" font-size="13" font-weight="bold" font-family="${xmlEsc(font)}" fill="#2c2c2a">${xmlEsc(name)}</text>`;
+
+    // Tekstlinjer
+    let y = headerH + 14;
+    textLines.forEach(line => {
+      const size = line.size || 11;
+      body += `<text x="${pad}" y="${y}" font-size="${size}" font-family="${xmlEsc(font)}" fill="${line.col}">${xmlEsc(line.t)}</text>`;
+      y += lineH;
+    });
+
+    // Lenkeliste (bare tekst i PNG)
+    if (linkTextLines.length > 0) {
+      y += 6;
+      body += `<line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="#e8e6de" stroke-width="0.5"/>`;
+      y += 12;
+      body += `<text x="${pad}" y="${y}" font-size="10" font-family="${xmlEsc(font)}" fill="#888780">Innleveringsoppgaver med passert frist:</text>`;
+      y += 14;
+      linkTextLines.forEach(line => {
+        body += `<text x="${pad+4}" y="${y}" font-size="10" font-family="${xmlEsc(font)}" fill="${line.col}">${xmlEsc(line.t)}</text>`;
+        y += 14;
+      });
+    }
+
+    // Batteridiagram
+    if (batParts) {
+      y += 6;
+      body += `<line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="#e8e6de" stroke-width="0.5"/>`;
+      y += 12;
+      body += `<text x="${pad}" y="${y}" font-size="10" font-family="${xmlEsc(font)}" fill="#888780">Lærestoff sett per leksjon</text>`;
+      y += 8;
+      defs += batParts.defs;
+      body += `<g transform="translate(${pad},${y})">${batParts.inner}</g>`;
+    }
+
+    // Tidsstempel nederst
+    const ts = norskTidsstempel();
+    body += `<text x="${W - pad}" y="${totalH - 6}" font-size="9" font-family="${xmlEsc(font)}" fill="#b4b2a9" text-anchor="end">Hentet ${xmlEsc(ts)}</text>`;
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${totalH}"><defs>${defs}</defs>${body}</svg>`;
+  }
+
+  // ─── Norsk tidsstempel ─────────────────────────────────────────────────────
+  function norskTidsstempel() {
+    const n  = new Date();
+    const hh = String(n.getHours()).padStart(2, '0');
+    const mm = String(n.getMinutes()).padStart(2, '0');
+    const dd = String(n.getDate()).padStart(2, '0');
+    const mo = String(n.getMonth() + 1).padStart(2, '0');
+    return `Kl. ${hh}.${mm} ${dd}.${mo}.${n.getFullYear()}`;
+  }
+
+  // Trekker ut defs, inner-innhold, bredde og høyde fra en SVG-streng
+  function extractSvgContent(svgStr) {
+    const defsM = svgStr.match(/<defs>([\s\S]*?)<\/defs>/);
+    const defs  = defsM ? defsM[1] : '';
+    const inner = svgStr
+      .replace(/<svg[^>]*>/,  '')
+      .replace('</svg>', '')
+      .replace(/<defs>[\s\S]*?<\/defs>/, '');
+    const wM = svgStr.match(/width="(\d+(?:\.\d+)?)"/);
+    const hM = svgStr.match(/height="(\d+(?:\.\d+)?)"/);
+    return { defs, inner, width: wM ? parseFloat(wM[1]) : 200, height: hM ? parseFloat(hM[1]) : 126 };
+  }
+
+  // Konverterer SVG-streng til PNG Blob via canvas
+  function svgToPng(svgStr) {
+    return new Promise((resolve, reject) => {
+      const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+      const url  = URL.createObjectURL(blob);
+      const img  = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const scale  = window.devicePixelRatio || 1;
+        canvas.width  = img.naturalWidth  * scale;
+        canvas.height = img.naturalHeight * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(scale, scale);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, img.naturalWidth, img.naturalHeight);
+        ctx.drawImage(img, 0, 0);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(resolve, 'image/png');
+      };
+      img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+      img.src = url;
+    });
+  }
+
+  // ─── Fargekategori-klassifisering ─────────────────────────────────────────
+  function colorCategory(sid) {
+    const data  = studentData[sid] || {};
+    const lEtter = data.leksjonerEtter;
+    const hasDL  = data.hasDeadlines;
+    if (lEtter === null && !hasDL) return null; // ingen frister
+    if (lEtter === null)           return 'red'; // frister men ikke levert
+    if (lEtter <= 1)               return null;  // i rute
+    if (lEtter === 2)              return 'green';
+    if (lEtter === 3)              return 'yellow';
+    return 'red'; // 4+
+  }
+
+  // ─── Bygg innhold for kopiering (plain text + HTML med SVG) ──────────────
+  function buildCopyContent(name, loginDays, subDays, delta, count, godkjent,
+      venterVurdering, totalt, leksjonerEtter, hoppetOver, missingByMod,
+      batteryModules, skippedPerMod) {
+    const courseId = getCourseId();
+
+    // ─── Tekst-linjer ──
+    const lines = [];
+    if (name) lines.push(name);
+    lines.push(loginDays === null
+      ? 'Aldri innlogget'
+      : `Innlogget: ${loginDays} dag${loginDays === 1 ? '' : 'er'} siden`);
+    lines.push(subDays === null
+      ? 'Aldri innlevert'
+      : `Innlevert: ${subDays} dag${subDays === 1 ? '' : 'er'} siden`);
+
+    if (delta === undefined && !count) {
+      lines.push('Ingen frister i kurset');
+    } else if (delta === null) {
+      lines.push('Har frister — ikke levert');
+    } else if (totalt > 0) {
+      const terskel = cfg.lessonThreshold || 50;
+      const pending = venterVurdering || 0;
+      lines.push(`${godkjent} av ${totalt} leksjoner fullført · Terskel: ${terskel}%`);
+      lines.push(`${pending} innlevering${pending === 1 ? '' : 'er'} venter vurdering`);
+      if (delta > 0) {
+        lines.push(`I forkant — levert i ${delta === 1 ? '1 leksjon' : delta + ' leksjoner'} med fremtidig frist`);
+      }
+      if (leksjonerEtter >= 2) {
+        lines.push(`På etterskudd — ${leksjonerEtter === 1 ? '1 leksjon' : leksjonerEtter + ' leksjoner'} etter skoleruta`);
+      }
+    } else {
+      lines.push('I rute — ingen leksjoner under terskel');
+    }
+    if (hoppetOver > 0) {
+      lines.push(`${hoppetOver} innlevering${hoppetOver === 1 ? '' : 'er'} med status Mangler`);
+    }
+
+    // ─── Lenker til manglende oppgaver ──
+    const linkMode = cfg.copyLinkMode || 'both';
+    const linkLines = [];
+    const linkHtmlItems = [];
+    if (courseId && missingByMod && Object.keys(missingByMod).length > 0) {
+      Object.entries(missingByMod).forEach(([modId, asgns]) => {
+        const modName = moduleNameMapGlobal[modId] || `Leksjon ${modId}`;
+        const modLines = [];
+        const modHtml  = [];
+        asgns.forEach(a => {
+          const include = linkMode === 'both'
+            ? true
+            : linkMode === 'auto'   ? a.isAutoGraded
+            : /* teacher */           !a.isAutoGraded;
+          if (!include) return;
+          const url    = `${location.origin}/courses/${courseId}/assignments/${a.id}`;
+          const due    = a.dueAt ? new Date(a.dueAt).toLocaleDateString('no-NO') : '';
+          const dueStr = due ? ` (frist: ${due})` : '';
+          modLines.push(`  ${a.name}${dueStr}\n  ${url}`);
+          modHtml.push(`<li><a href="${url}">${a.name}</a>${due ? ' — <em>frist: ' + due + '</em>' : ''}</li>`);
+        });
+        if (modLines.length > 0) {
+          linkLines.push(`${modName}:`);
+          linkLines.push(...modLines);
+          linkLines.push(''); // tom linje mellom leksjoner
+          linkHtmlItems.push(`<li><strong>${modName}</strong><ul style="margin:2px 0 6px">${modHtml.join('')}</ul></li>`);
+        }
+      });
+    }
+    if (linkLines.length > 0) {
+      lines.push('');
+      lines.push('Innleveringsoppgaver med passert frist:');
+      lines.push(...linkLines);
+    }
+
+    const ts = norskTidsstempel();
+    lines.push('');
+    lines.push(`Hentet ${ts}`);
+
+    const plainText = lines.join('\n');
+
+    // ─── HTML-versjon ──
+    const htmlLines = lines.slice(0, name ? 1 : 0).concat(
+      lines.slice(name ? 1 : 0, -linkLines.length - (linkLines.length > 0 ? 2 : 0))
+    );
+    let htmlBody = `<p style="font-family:sans-serif;font-size:13px;line-height:1.7;margin:0 0 8px">`;
+    if (name) htmlBody += `<strong>${name}</strong><br>`;
+    // Slå sammen innlogging, innlevering, fremdrift til en blokk
+    const infoLines = [
+      loginDays === null ? 'Aldri innlogget' : `Innlogget: ${loginDays} dag${loginDays === 1 ? '' : 'er'} siden`,
+      subDays === null ? 'Aldri innlevert' : `Innlevert: ${subDays} dag${subDays === 1 ? '' : 'er'} siden`,
+    ];
+    if (delta === undefined && !count) { infoLines.push('Ingen frister i kurset'); }
+    else if (delta === null) { infoLines.push('Har frister — ikke levert'); }
+    else if (totalt > 0) {
+      const terskel = cfg.lessonThreshold || 50;
+      const pending = venterVurdering || 0;
+      infoLines.push(`${godkjent} av ${totalt} leksjoner fullført · Terskel: ${terskel}%`);
+      infoLines.push(`${pending} innlevering${pending === 1 ? '' : 'er'} venter vurdering`);
+      if (delta > 0) infoLines.push(`I forkant — levert i ${delta === 1 ? '1 leksjon' : delta + ' leksjoner'} med fremtidig frist`);
+      if (leksjonerEtter >= 2) infoLines.push(`På etterskudd — ${leksjonerEtter === 1 ? '1 leksjon' : leksjonerEtter + ' leksjoner'} etter skoleruta`);
+    } else { infoLines.push('I rute — ingen leksjoner under terskel'); }
+    if (hoppetOver > 0) infoLines.push(`${hoppetOver} innlevering${hoppetOver === 1 ? '' : 'er'} med status Mangler`);
+    htmlBody += infoLines.join('<br>') + '</p>';
+
+    if (linkHtmlItems.length > 0) {
+      htmlBody += `<p style="font-family:sans-serif;font-size:13px;margin:8px 0 4px"><strong>Innleveringsoppgaver med passert frist:</strong></p>`;
+      htmlBody += `<ul style="font-family:sans-serif;font-size:13px;margin:0;padding-left:20px;line-height:1.7">${linkHtmlItems.join('')}</ul>`;
+    }
+
+    htmlBody += `<p style="font-family:sans-serif;font-size:10px;color:#b4b2a9;margin:10px 0 0">Hentet ${ts}</p>`;
+
+    const htmlContent = `<!DOCTYPE html><html><body>${htmlBody}</body></html>`;
+    return { plain: plainText, html: htmlContent };
+  }
+
+  // ─── Filtrer elevliste i Canvas ────────────────────────────────────────────
+  async function filterByColor(category) {
+    const input = document.querySelector('#student-names-filter');
+    if (!input) return 0;
+
+    const targets = Object.entries(studentNames)
+      .filter(([sid]) => colorCategory(sid) === category)
+      .map(([, name]) => name.trim().toLowerCase());
+    if (targets.length === 0) return 0;
+
+    // Fjern eksisterende valgte elever (klikk fjern-knapper på tags)
+    const filterWrap = input.closest('[class*="Select"]')
+      || input.closest('[class*="select"]')
+      || input.parentElement?.parentElement;
+    if (filterWrap) {
+      const removeBtns = filterWrap.querySelectorAll(
+        '[class*="close"], [aria-label*="emove"], [aria-label*="jern"], [aria-label*="Clear"]'
+      );
+      removeBtns.forEach(b => b.click());
+      if (removeBtns.length > 0) await new Promise(r => setTimeout(r, 200));
+    }
+
+    // Åpne og velg én og én elev — dropdown lukker seg etter hvert klikk
+    let clicked = 0;
+    for (const targetName of targets) {
+      input.click();
+      input.focus();
+      await new Promise(r => setTimeout(r, 300));
+
+      const listboxId = input.getAttribute('aria-controls') || input.getAttribute('aria-owns');
+      const listbox   = (listboxId ? document.getElementById(listboxId) : null)
+        || document.querySelector('[role="listbox"]');
+      if (!listbox) break;
+
+      const opt = Array.from(listbox.querySelectorAll('[role="option"]'))
+        .find(o => o.textContent.trim().toLowerCase() === targetName);
+      if (opt) {
+        opt.click();
+        await new Promise(r => setTimeout(r, 120));
+        clicked++;
+      }
+    }
+
+    // Lukk nedtrekkslisten
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    return clicked;
+  }
+
+  // ─── Nullstill fargefilter i Canvas ────────────────────────────────────────
+  async function clearColorFilter() {
+    const input = document.querySelector('#student-names-filter');
+    if (!input) return 0;
+
+    // Presis selektor for tag-fjernknapper i Instructure UI
+    const SEL = '[aria-label*="emove"], [aria-label*="Fjern"], [aria-label*="jern"], [class*="dismiss"]';
+
+    // Klatre oppover DOM-treet til vi finner containeren som har fjernknapper
+    let container = input.parentElement;
+    for (let up = 0; up < 8 && container && container !== document.body; up++) {
+      if (container.querySelector(SEL)) break;
+      container = container.parentElement;
+    }
+
+    let removed = 0;
+
+    if (container && container.querySelector(SEL)) {
+      // Klikk første fjernknapp i loop til ingen er igjen
+      for (let attempt = 0; attempt < 60; attempt++) {
+        const btn = container.querySelector(SEL);
+        if (!btn) break;
+        btn.click();
+        await new Promise(r => setTimeout(r, 150));
+        removed++;
+      }
+    } else {
+      // Fallback: Backspace fjerner siste valgte tag i Instructure UI Select
+      const tagCount = Object.keys(studentData).filter(sid => colorCategory(sid) !== null).length;
+      if (tagCount === 0) return 0;
+      input.focus();
+      await new Promise(r => setTimeout(r, 100));
+      for (let i = 0; i < Math.min(tagCount, 50); i++) {
+        input.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Backspace', code: 'Backspace', keyCode: 8, bubbles: true
+        }));
+        await new Promise(r => setTimeout(r, 150));
+        removed++;
+      }
+    }
+
+    return removed;
+  }
+
+  // ─── Meldingslytter fra popup ──────────────────────────────────────────────
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg.type === 'GET_COLOR_STATS') {
+      if (isLoading) {
+        sendResponse({ loading: true, green: [], yellow: [], red: [] });
+        return true;
+      }
+      const green = [], yellow = [], red = [];
+      for (const sid of Object.keys(studentData)) {
+        const cat  = colorCategory(sid);
+        const name = studentNames[sid];
+        if (!name || !cat) continue;
+        if (cat === 'green')  green.push({ sid, name });
+        if (cat === 'yellow') yellow.push({ sid, name });
+        if (cat === 'red')    red.push({ sid, name });
+      }
+      sendResponse({ loading: false, green, yellow, red });
+      return true;
+    }
+    if (msg.type === 'FILTER_BY_COLOR') {
+      filterByColor(msg.category).then(count => sendResponse({ count }));
+      return true;
+    }
+    if (msg.type === 'CLEAR_COLOR_FILTER') {
+      clearColorFilter().then(removed => sendResponse({ removed }));
+      return true;
+    }
+  });
 
 })();

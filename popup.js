@@ -8,7 +8,8 @@ const DEFAULTS = {
   submissionYellow: 21,
   lessonThreshold: 50,
   rowHighlight: false,
-  gradingMode: 'teacher'
+  gradingMode: 'teacher',
+  copyLinkMode: 'both'
 };
 
 const ids = ['loginGreen', 'loginYellow', 'submissionGreen', 'submissionYellow', 'lessonThreshold'];
@@ -22,6 +23,7 @@ chrome.storage.sync.get(DEFAULTS, (cfg) => {
     if (el) el.value = cfg[id] ?? DEFAULTS[id];
   });
   setGradingMode(cfg.gradingMode || 'teacher');
+  setCopyLinkMode(cfg.copyLinkMode || 'both');
   updateTynnLabel();
 });
 
@@ -97,6 +99,12 @@ function setGradingMode(val) {
   });
 }
 
+function setCopyLinkMode(val) {
+  document.querySelectorAll('#copy-link-mode .seg-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === val);
+  });
+}
+
 function save(changes) {
   chrome.storage.sync.set(changes);
 }
@@ -106,3 +114,84 @@ function setSettingsEnabled(enabled) {
   if (!body) return;
   body.classList.toggle('disabled-overlay', !enabled);
 }
+
+// ─── Copy-link-mode segmentknapper ────────────────────────────────────────
+document.getElementById('copy-link-mode').addEventListener('click', (e) => {
+  const btn = e.target.closest('.seg-btn');
+  if (!btn) return;
+  const val = btn.dataset.val;
+  setCopyLinkMode(val);
+  save({ copyLinkMode: val });
+});
+
+// ─── Fargekategori-filtrering ──────────────────────────────────────────────
+function loadColorStats() {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (!tabs[0]) return;
+    const isGradebook = /\/courses\/\d+\/gradebook/.test(tabs[0].url || '');
+    if (!isGradebook) {
+      document.getElementById('filter-status').textContent = 'Åpne vurderingsoversikten for å bruke';
+      return;
+    }
+    chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_COLOR_STATS' }, (resp) => {
+      if (chrome.runtime.lastError || !resp || resp.loading) {
+        document.getElementById('filter-status').textContent = 'Henter elevdata…';
+        setTimeout(loadColorStats, 2000);
+        return;
+      }
+      document.getElementById('badge-green').textContent  = resp.green.length;
+      document.getElementById('badge-yellow').textContent = resp.yellow.length;
+      document.getElementById('badge-red').textContent    = resp.red.length;
+      const total = resp.green.length + resp.yellow.length + resp.red.length;
+      document.getElementById('filter-status').textContent =
+        total > 0
+          ? `${total} elev${total === 1 ? '' : 'er'} med fargemerking`
+          : 'Ingen elever med fargemerking ennå';
+      ['filter-green', 'filter-yellow', 'filter-red', 'filter-clear'].forEach(id => {
+        document.getElementById(id).disabled = false;
+      });
+    });
+  });
+}
+
+['green', 'yellow', 'red'].forEach(color => {
+  const btn = document.getElementById(`filter-${color}`);
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    btn.disabled = true;
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs[0]) { btn.disabled = false; return; }
+      chrome.tabs.sendMessage(tabs[0].id, { type: 'FILTER_BY_COLOR', category: color }, (resp) => {
+        btn.disabled = false;
+        if (chrome.runtime.lastError || !resp) return;
+        const el = document.getElementById('filter-feedback');
+        if (el) {
+          el.textContent = resp.count > 0
+            ? `Filtrerte frem ${resp.count} elev${resp.count === 1 ? '' : 'er'}`
+            : 'Ingen elever i denne kategorien';
+          setTimeout(() => { el.textContent = ''; }, 3000);
+        }
+      });
+    });
+  });
+});
+
+document.getElementById('filter-clear').addEventListener('click', () => {
+  const btn = document.getElementById('filter-clear');
+  btn.disabled = true;
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (!tabs[0]) { btn.disabled = false; return; }
+    chrome.tabs.sendMessage(tabs[0].id, { type: 'CLEAR_COLOR_FILTER' }, (resp) => {
+      btn.disabled = false;
+      const el = document.getElementById('filter-feedback');
+      if (el) {
+        el.textContent = resp && resp.removed > 0
+          ? `Fjernet ${resp.removed} elev${resp.removed === 1 ? '' : 'er'} fra filteret`
+          : 'Ingen aktive filtre';
+        setTimeout(() => { el.textContent = ''; }, 2500);
+      }
+    });
+  });
+});
+
+loadColorStats();
