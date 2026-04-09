@@ -6,7 +6,7 @@
     loginGreen: 3,
     loginYellow: 7,
     submissionGreen: 7,
-    submissionYellow: 21,
+    submissionYellow: 14,
     lessonThreshold: 50,
     rowHighlight: false,
     gradingMode: 'teacher',
@@ -74,6 +74,8 @@
     // Canvas fortsetter å justere grid etter init — forsinkede re-renders fanger dette
     setTimeout(updateOverlay, 1500);
     setTimeout(updateOverlay, 4000);
+    // Last modulvisningsdata i bakgrunnen — fyller visningsbar etter hvert
+    backgroundLoadModuleCompletion();
   }
 
   // ─── CSS ──────────────────────────────────────────────────────────────────
@@ -226,6 +228,30 @@
       .cak-copy-btn:hover { color: #5f5e5a !important; background: rgba(0,0,0,0.06); }
       .cak-save-btn:hover  { color: #3b6d11  !important; background: rgba(0,0,0,0.06); }
       .cak-copy-btn.cak-copied { color: #3b6d11 !important; opacity: 1; }
+      .cak-view-bar-wrap {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        overflow: hidden;
+      }
+      .cak-view-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #97c459, #3b6d11);
+        border-radius: 0 1.5px 1.5px 0;
+        transition: width 0.5s ease;
+        width: 0;
+      }
+      .cak-view-bar-loading .cak-view-bar-fill {
+        width: 100%;
+        background: #d3d1c7;
+        animation: cak-pulse-bar 1.8s ease-in-out infinite;
+      }
+      @keyframes cak-pulse-bar {
+        0%, 100% { opacity: 0.4; }
+        50% { opacity: 0.9; }
+      }
     `;
     document.head.appendChild(s);
   }
@@ -408,6 +434,25 @@
       byStudent[sid].push(s);
     });
 
+    // Bygg oppslagstabell: assignmentId → 'auto' | 'teacher'
+    // Primær kilde: grader_id fra faktiske innleveringer (pålitelig for alle oppsett)
+    // Fallback: external_tool som heuristikk for oppgaver ingen har levert ennå
+    const assignmentTypeMap = {};
+    submissions.forEach(s => {
+      const aid = String(s.assignment_id);
+      if (assignmentTypeMap[aid] || s.grader_id == null) return;
+      assignmentTypeMap[aid] = Number(s.grader_id) < 0 ? 'auto' : 'teacher';
+    });
+    Object.values(moduleMapGlobal).forEach(modAssignments => {
+      modAssignments.forEach(asgn => {
+        const aid = String(asgn.id);
+        if (!assignmentTypeMap[aid]) {
+          assignmentTypeMap[aid] = (asgn.submission_types || []).includes('external_tool')
+            ? 'auto' : 'teacher';
+        }
+      });
+    });
+
     Object.entries(byStudent).forEach(([sid, subs]) => {
       if (!studentData[sid]) studentData[sid] = {};
 
@@ -430,14 +475,21 @@
       Object.entries(moduleMapGlobal).forEach(([modId, modAssignments]) => {
         modAssignments.forEach(asgn => {
           if (!asgn.due_at) return;
-          if (!lessons[modId]) lessons[modId] = { total: 0, delivered: 0, missing: 0, ahead: 0, fullfort: 0, venter: 0, pastDue: 0 };
+          if (!lessons[modId]) lessons[modId] = { total: 0, delivered: 0, missing: 0, ahead: 0, fullfort: 0, fullfortPastDue: 0, venter: 0, pastDue: 0, pastDueDenom: 0 };
           lessons[modId].total++;
 
           const sub = subs.find(s => String(s.assignment_id) === String(asgn.id));
           const now = Date.now();
           const due = new Date(asgn.due_at);
 
-          if (due <= now) lessons[modId].pastDue++;
+          if (due <= now) {
+            lessons[modId].pastDue++;
+            const aType = assignmentTypeMap[String(asgn.id)];
+            const modeRelevant = cfg.gradingMode === 'both'   ? true
+                               : cfg.gradingMode === 'auto'   ? aType === 'auto'
+                               :                                aType === 'teacher';
+            if (modeRelevant) lessons[modId].pastDueDenom++;
+          }
 
           // Felles mangler-sjekk: Canvas sin missing-status er autoritativ.
           // Dekker både automatisk (frist passert) og manuelt (underkjent av lærer).
@@ -461,6 +513,7 @@
               /* teacher (default) */       Number(graderId) > 0
             );
             if (isFullfort) lessons[modId].fullfort++;
+            if (isFullfort && due <= now) lessons[modId].fullfortPastDue++;
             if (!isGraded)  lessons[modId].venter++;
             if (due > now)  lessons[modId].ahead++;
           } else if (isMissing) {
@@ -490,9 +543,9 @@
 
       Object.values(lessons).forEach(l => {
         if (l.total === 0) return;
-        const completionFullfort = l.fullfort / l.total;
+        const completionFullfort = l.pastDueDenom > 0 ? l.fullfortPastDue / l.pastDueDenom : 0;
 
-        if (l.pastDue > 0) {
+        if (l.pastDueDenom > 0) {
           leksjonerMedPassertFrist++;
           if (completionFullfort >= threshold) godkjentAvPasserte++;
         }
@@ -503,10 +556,12 @@
         const completion = l.delivered / l.total;
         if (completionFullfort >= threshold) godkjent++;
         venterVurdering += l.venter || 0;
-        if (completionFullfort >= threshold) {
-          if (l.ahead > 0) netDelta += 1;
+        if (l.pastDueDenom === 0 && l.ahead > 0) {
+          netDelta += 1;                     // alt levert med fremtidig frist — i forkant
+        } else if (completionFullfort >= threshold) {
+          if (l.ahead > 0) netDelta += 1;   // passerte frister ok + noe ekstra i forkant
         } else {
-          netDelta -= 1;
+          netDelta -= 1;                     // passerte frister ikke oppfylt — på etterskudd
         }
       });
 
@@ -720,6 +775,23 @@
               iconsWrap.appendChild(tlWrap);
               cell.appendChild(iconsWrap);
 
+              // Visningsbar — 3px grønn stripe i bunnen viser snitt visningsprosent
+              const viewBarWrap = document.createElement('div');
+              const viewBarFill = document.createElement('div');
+              viewBarFill.className = 'cak-view-bar-fill';
+              const avgPct = data.avgViewPct;
+              if (avgPct !== null && avgPct !== undefined) {
+                viewBarFill.style.width = avgPct + '%';
+                viewBarWrap.className = 'cak-view-bar-wrap';
+              } else if (avgPct === undefined) {
+                viewBarWrap.className = 'cak-view-bar-wrap cak-view-bar-loading';
+              } else {
+                // null — lastet, men ingen must-view-sider i passerte leksjoner
+                viewBarWrap.className = 'cak-view-bar-wrap';
+              }
+              viewBarWrap.appendChild(viewBarFill);
+              cell.appendChild(viewBarWrap);
+
               // Kopieringsknapp — vises ved hover, absolutt posisjonert til høyre i cellen
               const copyBtn = document.createElement('span');
               copyBtn.className = 'cak-copy-btn';
@@ -796,6 +868,11 @@
                     moduleCompletionCache[sid] = await fetchModuleCompletion(sid);
                   } catch (err) {
                     moduleCompletionCache[sid] = false;
+                  }
+                  // Sett avgViewPct og oppdater baren nå som data er lastet
+                  if (studentData[sid]) {
+                    studentData[sid].avgViewPct = calcAvgViewPct(moduleCompletionCache[sid]);
+                    updateViewBar(sid);
                   }
                   if (currentHoverSid === sid && tooltipEl.style.display !== 'none') {
                     tooltipEl.innerHTML = buildTooltip(lDays, sDays, d.deadlineDelta,
@@ -1059,6 +1136,49 @@
     }
   }
 
+  // ─── Bakgrunnslasting av modulvisningsdata ────────────────────────────────
+  async function backgroundLoadModuleCompletion() {
+    const sids = Object.keys(studentData);
+    for (const sid of sids) {
+      if (studentData[sid]?.avgViewPct !== undefined) continue;
+      if (!moduleCompletionCache.hasOwnProperty(sid)) {
+        try {
+          moduleCompletionCache[sid] = await fetchModuleCompletion(sid);
+        } catch (e) {
+          moduleCompletionCache[sid] = false;
+        }
+      }
+      const pct = calcAvgViewPct(moduleCompletionCache[sid]);
+      if (studentData[sid]) studentData[sid].avgViewPct = pct;
+      updateViewBar(sid);
+    }
+  }
+
+  function calcAvgViewPct(modules) {
+    if (!modules || !Array.isArray(modules)) return null;
+    // Kun leksjoner eleven faktisk har åpnet (completed > 0)
+    // Leksjoner med completed = 0 (aldri påbegynt) ekskluderes — vises allerede som rød søyle i batteriet
+    const relevant = modules.filter(m => m.total > 0 && m.completed > 0);
+    if (relevant.length === 0) return null;
+    const sum = relevant.reduce((acc, m) => acc + m.completed / m.total, 0);
+    return Math.round(sum / relevant.length * 100);
+  }
+
+  function updateViewBar(sid) {
+    const cell = cellCache.get(sid);
+    if (!cell) return;
+    const wrap = cell.querySelector('.cak-view-bar-wrap');
+    if (!wrap) return;
+    const fill = wrap.querySelector('.cak-view-bar-fill');
+    const pct  = studentData[sid]?.avgViewPct;
+    wrap.classList.remove('cak-view-bar-loading');
+    if (pct !== null && pct !== undefined) {
+      fill.style.width = pct + '%';
+    } else {
+      fill.style.width = '0';
+    }
+  }
+
   async function fetchModuleCompletion(sid) {
     const courseId = getCourseId();
     const modules  = await paginate(
@@ -1183,9 +1303,15 @@
       }
     }
     let battery = '';
+    let avgViewLine = '';
     if (batteryModules === null) {
       battery = '<div style="margin-top:7px;border-top:0.5px solid #e8e6de;padding-top:6px;color:#b4b2a9;font-size:10px;">Laster lærestoffvisning…</div>';
     } else if (batteryModules && batteryModules.length > 0) {
+      const avgPct = calcAvgViewPct(batteryModules);
+      if (avgPct !== null) {
+        const viewColor = avgPct >= 60 ? '#3b6d11' : avgPct >= 30 ? '#5f5e5a' : '#a32d2d';
+        avgViewLine = `<br><span style="color:${viewColor}">Snitt visning: ${avgPct}\u00a0%</span>`;
+      }
       const relevant = batteryModules.filter(m => m.total > 0);
       if (relevant.length > 0) {
         battery = '<div style="margin-top:7px;border-top:0.5px solid #e8e6de;padding-top:5px">'
@@ -1199,7 +1325,7 @@
       ? `<br><span style="color:#c62828"><svg width="9" height="9" viewBox="0 0 9 9" style="vertical-align:middle;margin-right:3px"><circle cx="4.5" cy="4.5" r="3.5" fill="white" stroke="#3a3a3a" stroke-width="1"/></svg>${hoppetOver} innlevering${hoppetOver === 1 ? '' : 'er'} med status Mangler</span>`
       : '';
 
-    return `${l}<br>${s}<br>${d}${skipped}${battery}`;
+    return `${l}<br>${s}<br>${d}${avgViewLine}${skipped}${battery}`;
   }
 
   function updateCacheStatus(date) {

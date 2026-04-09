@@ -5,7 +5,7 @@ const DEFAULTS = {
   loginGreen: 3,
   loginYellow: 7,
   submissionGreen: 7,
-  submissionYellow: 21,
+  submissionYellow: 14,
   lessonThreshold: 50,
   rowHighlight: false,
   gradingMode: 'teacher',
