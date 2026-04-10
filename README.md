@@ -1,7 +1,8 @@
-# 📌 10.04.2026 GRAFIKK FOR FRAMDRIFT, VISNSING OSV. STEMMER GANSKE BRA. NY VERJSON MED JUSTERTE FORMLAR KJEM ETTER KVART.
 # Canvas Aktivitetskolonne
 
 Chrome-utvidelse som legger til en diskret aktivitetskolonne i Canvas vurderingsoversikt. Læreren får et øyeblikksbilde av elevenes innlogging, innleveringsstatus, fremdrift og leseatferd — uten å forlate oversikten.
+
+**Versjon: 10.04.2026**
 
 ---
 
@@ -24,6 +25,8 @@ Når alt er lastet caches dataene lokalt i 1 time. Neste gang du åpner samme kl
 3. Slå på **Utviklermodus** (øverst til høyre)
 4. Klikk **Last inn upakket** og velg mappen
 5. Gå til vurderingsoversikten i et Canvas-kurs — kolonnen vises automatisk
+
+> Versjonsnummeret er alltid datoen for siste oppdatering (DD.MM.ÅÅÅÅ). Sjekk popup-footeren for å bekrefte at kollegiet har lastet ned nyeste versjon.
 
 ---
 
@@ -80,7 +83,7 @@ Når fargemerking er slått på får Canvas-radene en dempet trafikklys-farge:
 
 ### Visningsbar (bunn av cellen)
 
-En diskret 3 px grønn stripe i nedkanten av cellen viser snittlig visningsprosent for lærestoff (Canvas-sider med «Vist»-krav) i leksjonene eleven har levert oppgaver i.
+En diskret 3 px grønn stripe i nedkanten av cellen viser snittlig visningsprosent for lærestoff (Canvas-sider med fullføringskrav) i leksjonene eleven har levert oppgaver i.
 
 - **Full grønn bar** → eleven har lest gjennom lærestoffet grundig
 - **Kort grønn bar** → eleven har levert, men lest lite
@@ -103,10 +106,11 @@ Hold musen over en celle for detaljert informasjon og batteridiagrammet.
 |-------|------------|
 | Innlogget: X dager siden | Siste aktivitet i Canvas |
 | Innlevert: X dager siden | Siste registrerte innlevering |
-| X av 15 leksjoner Fullført · Terskel: Y% | Godkjente leksjoner basert på terskelen |
-| N innleveringer venter vurdering | Levert men ikke vurdert ennå |
+| X av 15 leksjoner Fullført · Terskel: Y% | Godkjente leksjoner — se forklaring under |
+| N innleveringer venter vurdering | Levert men ikke karaktersatt ennå |
 | I forkant / På etterskudd | Avvik fra skoleruta |
-| Snitt visning: X % | Gjennomsnittlig andel sett lærestoff |
+| Snitt visning: X % | Gjennomsnittlig andel fullført lærestoff |
+| ○ N innleveringer med status Mangler | Antall innleveringer Canvas har flagget som manglende |
 
 ### Batteridiagrammet — lærestoff sett per leksjon
 
@@ -114,12 +118,27 @@ Diagrammet viser én loddrett søyle per leksjon. En midtlinje skiller positiv o
 
 | Element | Betyr |
 |---------|-------|
-| Grønn søyle oppover | Andel «Vist»-sider eleven har åpnet. Full høyde = 100 % |
-| Rød søyle nedover | Fristen er passert — eleven har ikke åpnet en eneste side |
+| Grønn søyle oppover | Andel av Canvas-sider med fullføringskrav eleven har fullført. Full høyde = 100 % |
+| Rød søyle nedover | Fristen er passert — eleven har ikke fullført noen lærerstoffsider i modulen |
 | Stiplet grå søyle | Fristen er ikke passert ennå — leksjonen er fremtidig |
-| Hvite sirkler | Antall innleveringer med passert frist som mangler |
+| Hvite sirkler (prikker) | Antall innleveringer med passert frist som ikke er levert |
+
+**Prikkene** viser innleveringer, quizer og diskusjoner med datofrist som mangler. De forsvinner når eleven leverer og kommer tilbake hvis lærer setter status «Mangler».
 
 **Dette er det mest pålitelige signalet på om eleven faktisk har jobbet med lærestoffet** — det avslører elever som leverer inn uten å ha gått innom sidene med lærestoff.
+
+### De fire informasjonslagene i kombinasjon
+
+De fire elementene utfyller hverandre og gir et komplett bilde:
+
+| Element | Viser |
+|---------|-------|
+| **X av 15 Fullført** | Lærergodkjent fremdrift |
+| **Venter vurdering** | Gapet mellom levert og godkjent |
+| **Grønne/røde barer** | Om eleven har lest lærestoffet |
+| **Prikker** | Konkrete manglende innleveringer |
+
+En erfaren lærer kan kombinere disse og lese hele elevens situasjon på sekunder uten å klikke seg inn i Canvas.
 
 ---
 
@@ -137,31 +156,27 @@ Hvilke oppgaver som tas med styres av innstillingen **Kopieringslenker** i popup
 
 ## Slik tolker du tallene — viktig å vite
 
-### «Fullført» er ikke det samme som «ferdig»
+### «X av 15 leksjoner Fullført» — hva teller?
 
-Telleren «X av 15 leksjoner Fullført» er basert på to valg i innstillingene:
+Tallet 15 er fast og representerer det totale antallet leksjoner i kurset. Det er knyttet til statsstøttekravet om at elever skal ha fullført minst 12 av 15 leksjoner.
 
-**1. Terskelprosent (standard: 50%)**
-En leksjon teller som Fullført når minst X% av oppgavene i modulen er godkjent innen fristen.
+En leksjon teller som **Fullført** når tilstrekkelig andel av innleveringene med passert frist er **karaktersatt som godkjent** av lærer eller autorettingssystem — ikke bare levert. Unntak: leksjoner der eleven har levert i forkant (fremtidig frist) teller som fullført siden karaktersetting ikke er forventet ennå.
 
-**2. Hva teller som «godkjent»?**
+Gapet mellom det eleven har levert og det som er karaktersatt vises i linjen **«N innleveringer venter vurdering»**. En lærer kan altså kombinere «X av 15» og «venter vurdering» for å forstå om lav score skyldes manglende levering eller manglende retting.
+
+### Terskelprosent
+
+Terskelen styrer hvor mange innleveringer i en leksjon som må være karaktersatt som Fullført for at leksjonen teller. Standard er 100 % — alle innleveringer med passert frist må være godkjent. Kan justeres i popup-panelet.
+
+### Hva teller som «godkjent»?
 
 | Valg | Hva som teller |
 |------|----------------|
-| Lærergodkjent (standard) | Kun oppgaver lærer har vurdert og satt status på |
-| Automatisk rettet | Kun oppgaver Canvas har rettet automatisk |
-| Begge | Alt som er registrert som vurdert |
+| Lærergodkjent (standard) | Kun oppgaver lærer har karaktersatt manuelt |
+| Automatisk rettet | Kun oppgaver Canvas har rettet automatisk (quizer o.l.) |
+| Begge | Alt som er registrert som karaktersatt |
 
-### Bruk signalene sammen
-
-Ingen enkelt indikator forteller hele historien:
-
-- **Ring** → er eleven aktiv i Canvas?
-- **Firkant** → har eleven levert noe nylig?
-- **Tidslinje** → er eleven foran eller bak skjema?
-- **Visningsbar** → har eleven lest lærestoffet?
-- **Batteriet** → hvilke leksjoner er lest, hvilke er ikke påbegynt?
-- **Hvite sirkler** → i hvilke leksjoner mangler det innleveringer?
+Dette gjør utvidelsen tilpasningsdyktig for fag med ulike vurderingsformer.
 
 ---
 
@@ -173,15 +188,17 @@ Oppgavene grupperes per leksjon basert på hvilken **modul** de tilhører i Canv
 
 Kun oppgaver med passert frist teller i beregningen — fremtidige frister ignoreres. Dette gjør beregningen dynamisk: en elev som er i forkant telles som i forkant, ikke som bak.
 
-- **Godkjent** (≥ terskel fullfort av forfalt): teller positivt
-- **Levert men ikke vurdert**: vises som «venter vurdering»
+- **Godkjent** (≥ terskel karaktersatt av passerte): teller positivt
+- **Levert men ikke karaktersatt**: vises som «venter vurdering», teller ikke som Fullført
 - **Ikke godkjent** (< terskel): trekker fra netto fremdrift
-- **Leksjon med fremtidig frist, levert**: bidrar positivt som «i forkant»
+- **Leksjon med fremtidig frist, levert**: bidrar positivt som «i forkant» og teller som Fullført
 
 **Trafikklys-farge:**
 ```
 leksjoner etter skjema = leksjoner med passert frist − godkjente av disse
 ```
+
+**Batteridiagrammets barer** beregnes separat fra fremdriften. De henter Canvas sin egen fullføringsstatus for sider med fullføringskrav (`must_view`, `must_mark_done`, `must_submit` osv.) via modul-API-et — uavhengig av innleveringsdata.
 
 ---
 
@@ -195,9 +212,9 @@ Klikk utvidelsesikonet i Chrome for å åpne innstillingspanelet.
 | ¾ fylt ring | ≤ 7 dager | Grense for relativt nylig innlogging |
 | Levert nylig | ≤ 7 dager | Grense for grønn firkant |
 | En stund siden | ≤ 14 dager | Grense for grå firkant |
-| Leksjon godkjent når | ≥ 50% | Terskel for leksjonsberegning |
+| Leksjon godkjent når | ≥ 100% | Terskel for leksjonsberegning |
 | Godkjenningsgrunnlag | Kun lærer | Hva som teller som godkjent |
-| Fargemerking | På | Trafikklys-farge på Canvas-rader |
+| Fargemerking | Av | Trafikklys-farge på Canvas-rader |
 
 ---
 
@@ -214,21 +231,23 @@ Elevdata forlater aldri Canvas sine egne servere.
 
 ## Teknisk
 
-- Manifest V3 — versjon 09.04.2026
+- Manifest V3 — versjon 10.04.2026
 - Aktiveres kun på `*.instructure.com/courses/*/gradebook*`
 - Canvas REST API-endepunkter som brukes:
   - `enrollments` med `last_activity_at`
-  - `students/submissions` med `missing`-flagg
-  - `assignments` med `due_at` og `submission_types`
-  - `modules` med `items` — for leksjonsgruppering og «Vist»-status
+  - `students/submissions` med `missing`-flagg, `workflow_state`, `grader_id`, `submitted_at`, `graded_at`
+  - `assignments` med `due_at`, `grading_type`, `submission_types`
+  - `modules` med `items` og `student_id` — for leksjonsgruppering og fullføringsstatus
 - Data caches i `chrome.storage.local` med 1-times utløp per kurs
 
 ---
 
-## Kjente begrensninger
+## Kjente begrensninger og åpne punkter
 
 - Canvas sin gradebook bruker virtuell scrolling (SlickGrid). DOM-strukturen kan variere mellom Canvas-versjoner
 - Utvidelsen er testet på `*.instructure.com`. Andre domener krever endring av `host_permissions` i `manifest.json`
+- Batteridiagrammet viser kun moduler som har Canvas-sider med fullføringskrav. Moduler som kun inneholder oppgaver/quizer uten sider kan mangle søyle selv om de har prikker
+- Prikkene baserer seg på `isMissing`-flagget fra Canvas. «Ikke fullført» som karaktersatt verdi (grade = incomplete) fanges ikke automatisk opp med prikk med mindre lærer også manuelt setter «Mangler»
 
 ---
 

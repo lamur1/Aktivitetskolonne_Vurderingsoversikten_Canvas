@@ -435,12 +435,22 @@
     });
 
     // Bygg oppslagstabell: assignmentId → 'auto' | 'teacher'
-    // Primær kilde: grader_id fra faktiske innleveringer (pålitelig for alle oppsett)
-    // Fallback: external_tool som heuristikk for oppgaver ingen har levert ennå
+    // pass_fail med grade='complete'/'pass' er alltid lærergradet — grader_id er upålitelig
+    // (Canvas bruker grader_id=-15 når karakter settes via karakterboken i stedet for SpeedGrader)
+    // Fallback: grader_id-fortegn, deretter external_tool-heuristikk
+    // Bygg oppslagstabell: assignmentId → 'auto' | 'teacher'
+    // pass_fail/complete_incomplete er alltid lærergradet — grader_id er upålitelig
+    // (Canvas bruker grader_id=-15 ved karaktersetting via karakterboken)
     const assignmentTypeMap = {};
+    Object.values(assignmentById).forEach(a => {
+      if (a.grading_type === 'pass_fail' || a.grading_type === 'complete_incomplete') {
+        assignmentTypeMap[String(a.id)] = 'teacher';
+      }
+    });
     submissions.forEach(s => {
       const aid = String(s.assignment_id);
-      if (assignmentTypeMap[aid] || s.grader_id == null) return;
+      if (assignmentTypeMap[aid]) return;
+      if (s.grader_id == null) return;
       assignmentTypeMap[aid] = Number(s.grader_id) < 0 ? 'auto' : 'teacher';
     });
     Object.values(moduleMapGlobal).forEach(modAssignments => {
@@ -507,11 +517,16 @@
               sub.graded_at
             );
             const graderId = sub.grader_id;
+            // pass_fail/complete_incomplete kan kun rettes av lærer — grader_id er upålitelig
+            const isPassFail = asgn.grading_type === 'pass_fail' || asgn.grading_type === 'complete_incomplete';
             const isFullfort = isGraded && (
+              isPassFail        ? cfg.gradingMode !== 'auto' :
               cfg.gradingMode === 'both'  ? true :
               cfg.gradingMode === 'auto'  ? Number(graderId) < 0 :
               /* teacher (default) */       Number(graderId) > 0
             );
+            // CAK-DEBUG: fjern etter feilsøking
+            console.log('[CAK-asgn]', asgn.name, 'grading_type:', asgn.grading_type, 'grader_id:', graderId, 'isPassFail:', isPassFail, 'isGraded:', isGraded, 'isFullfort:', isFullfort, 'due<=now:', due<=now);
             if (isFullfort) lessons[modId].fullfort++;
             if (isFullfort && due <= now) lessons[modId].fullfortPastDue++;
             if (!isGraded)  lessons[modId].venter++;
@@ -541,9 +556,11 @@
       let godkjentAvPasserte = 0;
       const threshold  = (cfg.lessonThreshold || 50) / 100;
 
-      Object.values(lessons).forEach(l => {
+      Object.entries(lessons).forEach(([modId, l]) => {
         if (l.total === 0) return;
         const completionFullfort = l.pastDueDenom > 0 ? l.fullfortPastDue / l.pastDueDenom : 0;
+        // CAK-DEBUG: fjern etter feilsøking
+        if (l.pastDue > 0) console.log('[CAK]', moduleNameMapGlobal[modId] || modId, 'denom:', l.pastDueDenom, 'fullfort:', l.fullfortPastDue, 'delivered:', l.delivered, 'completionFullfort:', completionFullfort.toFixed(2));
 
         if (l.pastDueDenom > 0) {
           leksjonerMedPassertFrist++;
@@ -553,8 +570,8 @@
         if (l.delivered === 0 && l.missing === 0) return;
         hasAnyLesson = true;
         totalt++;
-        const completion = l.delivered / l.total;
-        if (completionFullfort >= threshold) godkjent++;
+        const aheadAndDelivered = l.pastDue === 0 && (l.ahead || 0) > 0;
+        if (completionFullfort >= threshold || aheadAndDelivered) godkjent++;
         venterVurdering += l.venter || 0;
         if (l.pastDueDenom === 0 && l.ahead > 0) {
           netDelta += 1;                     // alt levert med fremtidig frist — i forkant
@@ -578,7 +595,7 @@
         studentData[sid].hoppetOver      = hoppetOver;
         studentData[sid].skippedPerMod   = skippedPerMod;
         studentData[sid].missingByMod    = missingByMod;
-        studentData[sid].totalt          = 15;
+        studentData[sid].totalt          = totalt;
       } else if (hasAnyDeadlines) {
         studentData[sid].deadlineDelta = null;
         studentData[sid].hasDeadlines  = true;
@@ -1185,11 +1202,11 @@
       `/api/v1/courses/${courseId}/modules?include[]=items&student_id=${sid}&per_page=100`
     );
     return modules.map(mod => {
-      const mustView  = (mod.items || []).filter(i =>
-        i.completion_requirement && i.completion_requirement.type === 'must_view'
+      const withReq  = (mod.items || []).filter(i =>
+        i.type === 'Page' && i.completion_requirement
       );
-      const completed = mustView.filter(i => i.completion_requirement.completed).length;
-      return { id: String(mod.id), name: mod.name, total: mustView.length, completed };
+      const completed = withReq.filter(i => i.completion_requirement.completed).length;
+      return { id: String(mod.id), name: mod.name, total: withReq.length, completed };
     });
   }
 
@@ -1288,7 +1305,7 @@
       if (totalt > 0) {
         const pending = venterVurdering || 0;
         const pendingWord = pending === 1 ? 'innlevering' : 'innleveringer';
-        d = `${godkjent} av ${totalt} leksjoner Fullført · Terskel: ${terskel}%` +
+        d = `${godkjent} av 15 leksjoner Fullført · Terskel: ${terskel}%` +
           `<br>${pending} ${pendingWord} venter vurdering`;
         if (delta > 0) {
           const leks = delta === 1 ? '1 leksjon' : `${delta} leksjoner`;
@@ -1446,7 +1463,7 @@
     } else if (totalt > 0) {
       const terskel = cfg.lessonThreshold || 50;
       const pending = venterVurdering || 0;
-      textLines.push({ t: `${godkjent} av ${totalt} leksjoner fullført · Terskel: ${terskel}%`, col:'#2c2c2a' });
+      textLines.push({ t: `${godkjent} av 15 leksjoner fullført · Terskel: ${terskel}%`, col:'#2c2c2a' });
       if (pending > 0) textLines.push({ t: `${pending} innlevering${pending===1?'':'er'} venter vurdering`, col:'#888780' });
       if (delta > 0)  textLines.push({ t: `I forkant — ${delta} leksjon${delta===1?'':'er'} med fremtidig frist`, col:'#3b6d11' });
       if (leksjonerEtter >= 2) textLines.push({ t: `På etterskudd — ${leksjonerEtter} leksjon${leksjonerEtter===1?'':'er'} etter skoleruta`, col:'#a32d2d' });
@@ -1619,7 +1636,7 @@
     } else if (totalt > 0) {
       const terskel = cfg.lessonThreshold || 50;
       const pending = venterVurdering || 0;
-      lines.push(`${godkjent} av ${totalt} leksjoner fullført · Terskel: ${terskel}%`);
+      lines.push(`${godkjent} av 15 leksjoner fullført · Terskel: ${terskel}%`);
       lines.push(`${pending} innlevering${pending === 1 ? '' : 'er'} venter vurdering`);
       if (delta > 0) {
         lines.push(`I forkant — levert i ${delta === 1 ? '1 leksjon' : delta + ' leksjoner'} med fremtidig frist`);
@@ -1691,7 +1708,7 @@
     else if (totalt > 0) {
       const terskel = cfg.lessonThreshold || 50;
       const pending = venterVurdering || 0;
-      infoLines.push(`${godkjent} av ${totalt} leksjoner fullført · Terskel: ${terskel}%`);
+      infoLines.push(`${godkjent} av 15 leksjoner fullført · Terskel: ${terskel}%`);
       infoLines.push(`${pending} innlevering${pending === 1 ? '' : 'er'} venter vurdering`);
       if (delta > 0) infoLines.push(`I forkant — levert i ${delta === 1 ? '1 leksjon' : delta + ' leksjoner'} med fremtidig frist`);
       if (leksjonerEtter >= 2) infoLines.push(`På etterskudd — ${leksjonerEtter === 1 ? '1 leksjon' : leksjonerEtter + ' leksjoner'} etter skoleruta`);
