@@ -248,6 +248,7 @@ Elevdata forlater aldri Canvas sine egne servere.
 - Utvidelsen er testet på `*.instructure.com`. Andre domener krever endring av `host_permissions` i `manifest.json`
 - Batteridiagrammet viser kun moduler som har Canvas-sider med fullføringskrav. Moduler som kun inneholder oppgaver/quizer uten sider kan mangle søyle selv om de har prikker
 - Prikkene baserer seg på `isMissing`-flagget fra Canvas. «Ikke fullført» som karaktersatt verdi (grade = incomplete) fanges ikke automatisk opp med prikk med mindre lærer også manuelt setter «Mangler»
+- **«Legg til elevoppgave» + «Vis»-krav** på en Canvas-side er trygt å bruke. Siden forblir en `Page` i API-et og teller normalt i de grønne barene — ikke som innlevering. Kombinasjonen gjør at siden vises i elevens gjøreliste og kalender uten å påvirke X av 15, prikker eller venter-vurdering. Testet og bekreftet 10.04.2026.
 
 ---
 
