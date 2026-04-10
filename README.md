@@ -1,3 +1,4 @@
+# 📌 10.04.2026 GRAFIKK FOR FRAMDRIFT, VISNSING OSV. STEMMER GANSKE BRA. NY VERJSON MED JUSTERTE FORMLAR KJEM ETTER KVART.
 # Canvas Aktivitetskolonne
 
 Chrome-utvidelse som legger til en diskret aktivitetskolonne i Canvas vurderingsoversikt. Læreren får et øyeblikksbilde av elevenes innlogging, innleveringsstatus, fremdrift og leseatferd — uten å forlate oversikten.
