@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forhåndsvisning — Hover-tooltips</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f0efe9;
+      padding: 32px 24px 48px;
+      color: #2c2c2a;
+    }
+
+    h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #2c2c2a;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      font-size: 12px;
+      color: #888780;
+      margin-bottom: 32px;
+    }
+
+    .tooltips-row {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      margin-bottom: 40px;
+    }
+
+    .tooltip-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .tooltip-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #888780;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .tooltip {
+      background: #ffffff;
+      border: 1px solid #e8e6de;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      width: 280px;
+    }
+
+    .tooltip-line {
+      font-size: 13px;
+      line-height: 22px;
+      color: #5f5e5a;
+    }
+    .tooltip-line.strong { color: #2c2c2a; font-weight: 500; }
+    .tooltip-line.green  { color: #3b6d11; }
+    .tooltip-line.dark-green { color: #4a7c1f; }
+    .tooltip-line.red    { color: #a32d2d; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #e8e6de;
+      margin: 10px 0 8px;
+    }
+
+    .battery-label {
+      font-size: 10px;
+      color: #888780;
+      margin-bottom: 6px;
+    }
+
+    .battery-container svg {
+      display: block;
+    }
+
+    .legend-section {
+      background: #ffffff;
+      border: 1px solid #e8e6de;
+      border-radius: 8px;
+      padding: 16px 20px;
+      max-width: 720px;
+    }
+    .legend-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #2c2c2a;
+      margin-bottom: 12px;
+    }
+    .legend-items {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 28px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #5f5e5a;
+    }
+    .legend-swatch {
+      width: 24px;
+      height: 12px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    .legend-swatch.green {
+      background: linear-gradient(to top, #97c459, #3b6d11);
+    }
+    .legend-swatch.red {
+      background: linear-gradient(to bottom, #e57373, #a32d2d);
+    }
+    .legend-swatch.dashed {
+      background: none;
+      border: 1.5px dashed #b4b2a9;
+    }
+    .legend-dot-wrap {
+      width: 24px;
+      height: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .legend-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 1px solid #2c2c2a;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Hover-tooltip — forhåndsvisning</h1>
+  <p class="subtitle">Tre eksempeltooltips: aktiv, gjennomsnitt og bekymringsfull elev</p>
+
+  <div class="tooltips-row">
+
+    <div class="tooltip-wrapper">
+      <span class="tooltip-label">1 — Aktiv elev, i forkant</span>
+      <div class="tooltip">
+        <div class="tooltip-line">Innlogget 2d</div>
+        <div class="tooltip-line">Innlevert 3d</div>
+        <div class="tooltip-line strong">11 av 15 leksjoner Fullført · Terskel: 50%</div>
+        <div class="tooltip-line">0 venter vurdering</div>
+        <div class="tooltip-line green">I forkant — levert i 2 leksjoner med fremtidig frist</div>
+        <div class="tooltip-line dark-green">Snitt visning: 74 %</div>
+        <hr class="divider">
+        <div class="battery-label">Lærestoff sett per leksjon</div>
+        <div class="battery-container" id="battery1"></div>
+      </div>
+    </div>
+
+    <div class="tooltip-wrapper">
+      <span class="tooltip-label">2 — Gjennomsnittselev, i rute</span>
+      <div class="tooltip">
+        <div class="tooltip-line">Innlogget 4d</div>
+        <div class="tooltip-line">Innlevert 6d</div>
+        <div class="tooltip-line strong">9 av 15 leksjoner Fullført · Terskel: 50%</div>
+        <div class="tooltip-line">2 venter vurdering</div>
+        <div class="tooltip-line green">I rute — følger skjema</div>
+        <div class="tooltip-line dark-green">Snitt visning: 58 %</div>
+        <hr class="divider">
+        <div class="battery-label">Lærestoff sett per leksjon</div>
+        <div class="battery-container" id="battery2"></div>
+      </div>
+    </div>
+
+    <div class="tooltip-wrapper">
+      <span class="tooltip-label">3 — Bekymringsfull, på etterskudd</span>
+      <div class="tooltip">
+        <div class="tooltip-line">Innlogget 18d</div>
+        <div class="tooltip-line">Innlevert 22d</div>
+        <div class="tooltip-line strong">4 av 15 leksjoner Fullført · Terskel: 50%</div>
+        <div class="tooltip-line">0 venter vurdering</div>
+        <div class="tooltip-line red">På etterskudd — 5 leksjoner etter skoleruta</div>
+        <div class="tooltip-line red">Snitt visning: 18 %</div>
+        <hr class="divider">
+        <div class="battery-label">Lærestoff sett per leksjon</div>
+        <div class="battery-container" id="battery3"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="legend-section">
+    <div class="legend-title">Forklaring — batteridiagrammet</div>
+    <div class="legend-items">
+      <div class="legend-item">
+        <div class="legend-swatch green"></div>
+        <span>Grønn søyle (oppover) — % lærestoff sett</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-swatch red"></div>
+        <span>Rød søyle — passert frist, ikke påbegynt</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-swatch dashed"></div>
+        <span>Stiplet søyle — fremtidig leksjon</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot-wrap">
+          <div class="legend-dot"></div>
+          <div class="legend-dot"></div>
+        </div>
+        <span>Hvit sirkel — manglende innlevering</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var labelH = 14;
+    var upH    = 44;
+    var downH  = 40;
+    var midY   = labelH + upH;
+    var barW   = 7;
+    var stride = 18;
+    var nBars  = 13;
+    var svgW   = nBars * stride - (stride - barW);
+    var svgH   = labelH + upH + downH;
+
+    var labels = ['L16','L17','L18','L19','L20','L21','L22','L23','L24','L25','L26','L27','L28'];
+
+    function svgNS() { return 'http://www.w3.org/2000/svg'; }
+
+    function makeBattery(containerId, bars, gradId) {
+      var ns = svgNS();
+      var svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('width', svgW);
+      svg.setAttribute('height', svgH);
+      svg.setAttribute('viewBox', '0 0 ' + svgW + ' ' + svgH);
+
+      var defs = document.createElementNS(ns, 'defs');
+
+      var gGreen = document.createElementNS(ns, 'linearGradient');
+      gGreen.setAttribute('id', gradId + '-g');
+      gGreen.setAttribute('x1', '0%');
+      gGreen.setAttribute('y1', '100%');
+      gGreen.setAttribute('x2', '0%');
+      gGreen.setAttribute('y2', '0%');
+      var s1 = document.createElementNS(ns, 'stop');
+      s1.setAttribute('offset', '0%');
+      s1.setAttribute('stop-color', '#97c459');
+      var s2 = document.createElementNS(ns, 'stop');
+      s2.setAttribute('offset', '100%');
+      s2.setAttribute('stop-color', '#3b6d11');
+      gGreen.appendChild(s1);
+      gGreen.appendChild(s2);
+      defs.appendChild(gGreen);
+
+      var gRed = document.createElementNS(ns, 'linearGradient');
+      gRed.setAttribute('id', gradId + '-r');
+      gRed.setAttribute('x1', '0%');
+      gRed.setAttribute('y1', '0%');
+      gRed.setAttribute('x2', '0%');
+      gRed.setAttribute('y2', '100%');
+      var s3 = document.createElementNS(ns, 'stop');
+      s3.setAttribute('offset', '0%');
+      s3.setAttribute('stop-color', '#e57373');
+      var s4 = document.createElementNS(ns, 'stop');
+      s4.setAttribute('offset', '100%');
+      s4.setAttribute('stop-color', '#a32d2d');
+      gRed.appendChild(s3);
+      gRed.appendChild(s4);
+      defs.appendChild(gRed);
+
+      svg.appendChild(defs);
+
+      var midLine = document.createElementNS(ns, 'line');
+      midLine.setAttribute('x1', '0');
+      midLine.setAttribute('y1', midY);
+      midLine.setAttribute('x2', svgW);
+      midLine.setAttribute('y2', midY);
+      midLine.setAttribute('stroke', '#888780');
+      midLine.setAttribute('stroke-width', '1');
+      svg.appendChild(midLine);
+
+      for (var i = 0; i < bars.length; i++) {
+        var bar = bars[i];
+        var cx = i * stride + barW / 2;
+        var bx = i * stride;
+
+        var lbl = document.createElementNS(ns, 'text');
+        lbl.setAttribute('x', cx);
+        lbl.setAttribute('y', labelH - 1);
+        lbl.setAttribute('font-family', 'system-ui,sans-serif');
+        lbl.setAttribute('font-size', '8');
+        lbl.setAttribute('fill', '#888780');
+        lbl.setAttribute('text-anchor', 'middle');
+        lbl.textContent = labels[i];
+        svg.appendChild(lbl);
+
+        if (bar.type === 'green') {
+          var fh = bar.fillH || 0;
+          var rect = document.createElementNS(ns, 'rect');
+          rect.setAttribute('x', bx);
+          rect.setAttribute('y', midY - fh);
+          rect.setAttribute('width', barW);
+          rect.setAttribute('height', fh);
+          rect.setAttribute('rx', '1.5');
+          rect.setAttribute('fill', 'url(#' + gradId + '-g)');
+          svg.appendChild(rect);
+
+          if (bar.dots) {
+            for (var d = 0; d < bar.dots; d++) {
+              var dot = document.createElementNS(ns, 'circle');
+              dot.setAttribute('cx', cx);
+              dot.setAttribute('cy', midY + 8 + d * 9);
+              dot.setAttribute('r', '3');
+              dot.setAttribute('fill', '#ffffff');
+              dot.setAttribute('stroke', '#2c2c2a');
+              dot.setAttribute('stroke-width', '0.8');
+              svg.appendChild(dot);
+            }
+          }
+        } else if (bar.type === 'red') {
+          var rect2 = document.createElementNS(ns, 'rect');
+          rect2.setAttribute('x', bx);
+          rect2.setAttribute('y', midY);
+          rect2.setAttribute('width', barW);
+          rect2.setAttribute('height', downH);
+          rect2.setAttribute('rx', '1.5');
+          rect2.setAttribute('fill', 'url(#' + gradId + '-r)');
+          svg.appendChild(rect2);
+
+          if (bar.dots) {
+            for (var d2 = 0; d2 < bar.dots; d2++) {
+              var dot2 = document.createElementNS(ns, 'circle');
+              dot2.setAttribute('cx', cx);
+              dot2.setAttribute('cy', midY + 8 + d2 * 9);
+              dot2.setAttribute('r', '3');
+              dot2.setAttribute('fill', '#ffffff');
+              dot2.setAttribute('stroke', '#2c2c2a');
+              dot2.setAttribute('stroke-width', '0.8');
+              svg.appendChild(dot2);
+            }
+          }
+        } else if (bar.type === 'dashed') {
+          var rect3 = document.createElementNS(ns, 'rect');
+          rect3.setAttribute('x', bx);
+          rect3.setAttribute('y', midY);
+          rect3.setAttribute('width', barW);
+          rect3.setAttribute('height', downH);
+          rect3.setAttribute('rx', '1.5');
+          rect3.setAttribute('fill', 'none');
+          rect3.setAttribute('stroke', '#b4b2a9');
+          rect3.setAttribute('stroke-width', '1');
+          rect3.setAttribute('stroke-dasharray', '3,2');
+          svg.appendChild(rect3);
+        }
+      }
+
+      document.getElementById(containerId).appendChild(svg);
+    }
+
+    makeBattery('battery1', [
+      {type:'green', fillH:44},
+      {type:'green', fillH:38},
+      {type:'green', fillH:34},
+      {type:'green', fillH:35},
+      {type:'green', fillH:32},
+      {type:'green', fillH:40},
+      {type:'green', fillH:38},
+      {type:'green', fillH:44},
+      {type:'green', fillH:28},
+      {type:'red',   dots:2},
+      {type:'green', fillH:14},
+      {type:'dashed'},
+      {type:'dashed'}
+    ], 'g1');
+
+    makeBattery('battery2', [
+      {type:'green', fillH:30},
+      {type:'green', fillH:25},
+      {type:'green', fillH:27},
+      {type:'green', fillH:23},
+      {type:'green', fillH:21},
+      {type:'green', fillH:17},
+      {type:'green', fillH:27},
+      {type:'green', fillH:19, dots:1},
+      {type:'green', fillH:11},
+      {type:'red',   dots:1},
+      {type:'dashed'},
+      {type:'dashed'},
+      {type:'dashed'}
+    ], 'g2');
+
+    makeBattery('battery3', [
+      {type:'green', fillH:12},
+      {type:'red',   dots:2},
+      {type:'red',   dots:1},
+      {type:'green', fillH:6},
+      {type:'red',   dots:3},
+      {type:'dashed'},
+      {type:'dashed'},
+      {type:'dashed'},
+      {type:'dashed'},
+      {type:'dashed'},
+      {type:'dashed'},
+      {type:'dashed'},
+      {type:'dashed'}
+    ], 'g3');
+  </script>
+
+</body>
+</html>

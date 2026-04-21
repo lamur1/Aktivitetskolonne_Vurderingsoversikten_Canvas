@@ -1,5 +1,25 @@
 # Endringslogg
 
+## 20.04.26 — Prikklogikk, statustekst og modalfiks
+
+### Lagt til
+- `countEtter()`-funksjon i standalone-filen (`canvas-leksjonsfremdrift-og-min-fremdrift.js`) — manglet der
+- Statustekst i «Min fremdrift»-modal bruker nå `countEtter` for å skille mellom «i forkant» og «mangler i passerte leksjoner»
+
+### Endret
+- **Fremtidsprikker (elev og lærer):** fjernet `isStarted`-sjekk som feilaktig skjulte alle fremtidsprikker når eleven leverte én oppgave. Viser nå `futureCount − leverte` gjenværende prikker
+- **Dobbelttelling (lærer):** `futureCount` trakk ikke fra allerede leverte — en levert NQ dukket opp både som grønn prikk over streken og som fremtidsprikk under. Rettet
+- **`fetchModuleCompletion` (lærer):** filtrerte tidligere kun `type === 'Page'`. Teller nå alle items med `completion_requirement`, slik at frivillige «Vis»-oppgaver også vokser den grønne baren i lærervisningen — konsistent med elevvisningen
+- **Statustekst «Min fremdrift»:** ny prioriteringsrekkefølge — mangler i passerte leksjoner vises som «Grafikken under viser om lærestoff og oppgaver er glemt eller hoppet over», uavhengig av om eleven har levert i fremtidige leksjoner. «Du er i forkant» vises kun når ingen passerte frister mangler
+- **«Oppdater nå»-knapp:** lukket tidligere modal og krevde at eleven åpnet vinduet på nytt. Viser nå «Henter data…» i samme modal og re-henter uten å lukke vinduet
+- **Versjon:** `manifest.json` oppdatert til `2026.4.20`
+
+### Fikset
+- Frivillig oppgave med «Vis»-krav trigget `isStarted = true` og fjernet fremtidsprikker for gjenstående obligatoriske oppgaver i samme leksjon
+- NQ-levering i fremtidig leksjon fjernet begge fremtidsprikkene (inkl. den uleverte) i stedet for bare én
+
+---
+
 ## 02.04.26 — Lærestoffgrafikk i hover-tooltip
 
 ### Endret

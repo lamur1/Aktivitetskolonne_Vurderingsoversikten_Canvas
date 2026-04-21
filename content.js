@@ -1,3 +1,18 @@
+// ============================================================
+// DESIGNREGLER — ikke endre uten å forstå konsekvensene:
+//
+// GRØNN BAR = kun must_view (Vis-krav) — lærestoff uten dato.
+//             Filtrer ALLTID på: completion_requirement.type === 'must_view'
+//             Aldri alle completion_requirement — da trekkes innleveringer inn.
+//
+// PRIKKER    = must_submit (innleveringer med dato) — vises under streken.
+//             Bruker missing-flagg og due_at fra Canvas API.
+//
+// FREMTIDSPRIKKER = futureCount minus allerede leverte — aldri isStarted-sjekk.
+//
+// Disse reglene ble brutt 20.04.2026 og kostet en økt å rette opp.
+// ============================================================
+
 (function () {
   'use strict';
 
@@ -1287,7 +1302,7 @@
       `/api/v1/courses/${courseId}/modules?include[]=items&student_id=${sid}&per_page=100`
     );
     return modules.map(mod => {
-      const withReq  = (mod.items || []).filter(i => i.completion_requirement);
+      const withReq  = (mod.items || []).filter(i => i.completion_requirement && i.completion_requirement.type === 'must_view');
       const completed = withReq.filter(i => i.completion_requirement.completed).length;
       return { id: String(mod.id), name: mod.name, total: withReq.length, completed };
     });
