@@ -2,7 +2,7 @@
 
 Chrome-utvidelse som legger til en diskret aktivitetskolonne i Canvas vurderingsoversikt. Læreren får et øyeblikksbilde av elevenes innlogging, innleveringsstatus, fremdrift og leseatferd — uten å forlate oversikten.
 
-**Versjon: 10.04.2026**
+**Versjon: 21.04.2026**
 
 ---
 
