@@ -229,6 +229,32 @@ Elevdata forlater aldri Canvas sine egne servere.
 
 ---
 
+## Canvas-skript for elever — fire filer
+
+Det følger med fire JavaScript-filer som limes inn i Canvas sitt globale JavaScript-felt (Admin → Tema → JS). Velg én fra hver gruppe:
+
+### Gruppe 1 — Tooltip og modulside (`canvas-global-…`)
+
+Håndterer tooltip på gjøremålslenker, automatisk kollaps/ekspander av leksjoner på modulside, premieikon ved fullføring og diplom ved kursslutt.
+
+| Fil | Forskjell |
+|-----|-----------|
+| `canvas-global_med_kulelenker.js` | Prikkene i batteridiagrammet er **klikkbare lenker** til den aktuelle oppgaven |
+| `canvas-global_uten_kulelenker.js` | Prikkene er **ikke klikkbare** — kun visuelle indikatorer |
+
+### Gruppe 2 — Leksjonsfremdrift og Min fremdrift (`canvas-leksjonsfremdrift-…`)
+
+Håndterer den flytende fremdriftsbjelken øverst på siden og «Min fremdrift»-modalen med batteridiagram og statistikk.
+
+| Fil | Forskjell |
+|-----|-----------|
+| `canvas-leksjonsfremdrift-og-min-fremdrift_med_kulelenker.js` | Prikkene i batteridiagrammet er **klikkbare lenker** til den aktuelle oppgaven |
+| `canvas-leksjonsfremdrift-og-min-fremdrift_uten_kulelenker.js` | Prikkene er **ikke klikkbare** — kun visuelle indikatorer |
+
+> Velg konsekvent — bruk enten begge `med_kulelenker`-filene eller begge `uten_kulelenker`-filene.
+
+---
+
 ## Teknisk
 
 - Manifest V3 — versjon 23.04.2026

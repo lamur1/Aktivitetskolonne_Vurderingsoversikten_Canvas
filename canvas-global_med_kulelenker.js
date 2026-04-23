@@ -48,13 +48,11 @@ document.body.appendChild(h5pScript);
   var SIDE_SLUG = 'gs-tekster';
 
   // Standardtekster – overskrives av innholdet i gs-tekster-siden hvis den finnes.
-  // tooltip-tekst-med-navn: {navn} erstattes med leksjonens tittel fra gjøremålslisten.
   var TEKSTER = {
-    'tooltip-ikon':           '📖',
-    'tooltip-tittel':         'Les leksjonen først!',
-    'tooltip-tekst':          'Husk å lese gjennom leksjonen før du gjør oppgavene – klikk for å gå dit du er.',
-    'tooltip-tekst-med-navn': 'Husk å lese «{navn}» før du gjør oppgavene – klikk for å gå dit du er.',
-    'tooltip-knapp':          'Gå til din neste leksjon →',
+    'tooltip-ikon':           '💻',
+    'tooltip-tittel':         'Gått gjennom lærestoffet?',
+    'tooltip-tekst':          'Husk å starte med Startsiden i leksjonen. Arbeid med lærestoffet før du gjør oppgavene. 👍',
+    'tooltip-knapp':          'Gå til leksjonsoversikten →',
     'infoboks-ikon':          '🏆',
     'infoboks-overskrift':    'Fullfør en leksjon – få et premieikon!',
     'infoboks-tekst':         'Når du har gjort ferdig alt i en leksjon, får den et premieikon og foldes sammen automatisk. Leksjoner du ikke er ferdig med er åpne og klare til bruk.',
@@ -264,10 +262,8 @@ document.body.appendChild(h5pScript);
     lapp.style.top  = y + 'px';
   }
 
-  function lagTekst(leksjonNavn) {
-    return leksjonNavn
-      ? TEKSTER['tooltip-tekst-med-navn'].replace('{navn}', leksjonNavn)
-      : TEKSTER['tooltip-tekst'];
+  function lagTekst() {
+    return TEKSTER['tooltip-tekst'];
   }
 
   function visLapp(el, kursId, leksjonNavn) {
@@ -278,7 +274,7 @@ document.body.appendChild(h5pScript);
     visTimer = setTimeout(function () {
       if (aktivEl !== el) return;
       lapp.href = kursId ? '/courses/' + kursId + '/modules' : '#';
-      tekst.textContent = lagTekst(leksjonNavn);
+      tekst.textContent = lagTekst();
       plasserLapp(el);
       lapp.classList.add('gs-synlig');
     }, FORSINKELSE);
@@ -320,7 +316,7 @@ document.body.appendChild(h5pScript);
 
     el.addEventListener('touchstart', function () {
       lapp.href = kursId ? '/courses/' + kursId + '/modules' : '#';
-      tekst.textContent = lagTekst(leksjonNavn);
+      tekst.textContent = lagTekst();
       plasserLapp(el);
       lapp.classList.add('gs-synlig');
       setTimeout(skjulLapp, 5000);
