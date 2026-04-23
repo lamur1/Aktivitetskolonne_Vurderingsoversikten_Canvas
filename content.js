@@ -59,6 +59,22 @@
     waitForGradebook();
   });
 
+  // Hent seksjoner direkte fra Canvas API og cache i chrome.storage.local.
+  (function cacheSections() {
+    const courseMatch = location.pathname.match(/\/courses\/(\d+)/);
+    if (!courseMatch) return;
+    const cId = courseMatch[1];
+    fetch(`/api/v1/courses/${cId}/sections?per_page=100`)
+      .then(r => r.ok ? r.json() : [])
+      .then(sections => {
+        if (!Array.isArray(sections) || !sections.length) return;
+        chrome.storage.local.set({
+          [`cak_sections_${cId}`]: sections.map(s => ({ id: String(s.id), name: s.name }))
+        });
+      })
+      .catch(() => {});
+  })();
+
   chrome.storage.onChanged.addListener((changes) => {
     for (const key in changes) cfg[key] = changes[key].newValue;
     invalidateCache();

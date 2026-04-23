@@ -2,7 +2,7 @@
 
 Chrome-utvidelse som legger til en diskret aktivitetskolonne i Canvas vurderingsoversikt. Læreren får et øyeblikksbilde av elevenes innlogging, innleveringsstatus, fremdrift og leseatferd — uten å forlate oversikten.
 
-**Versjon: 21.04.2026**
+**Versjon: 23.04.2026**
 
 ---
 
@@ -231,7 +231,7 @@ Elevdata forlater aldri Canvas sine egne servere.
 
 ## Teknisk
 
-- Manifest V3 — versjon 10.04.2026
+- Manifest V3 — versjon 23.04.2026
 - Aktiveres kun på `*.instructure.com/courses/*/gradebook*`
 - Canvas REST API-endepunkter som brukes:
   - `enrollments` med `last_activity_at`

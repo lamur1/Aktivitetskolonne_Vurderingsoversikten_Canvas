@@ -58,16 +58,16 @@
     .col-divider { width: 1px; background: #d3d1c7; align-self: stretch; flex-shrink: 0; }
     .col-right { flex: 1; padding-left: 14px; min-width: 0; }
 
-    .section { margin-top: 12px; }
+    .section { margin-top: 8px; }
     .section:first-child { margin-top: 0; }
     .section-title {
       font-size: 11px; font-weight: 600;
       text-transform: uppercase; letter-spacing: 0.05em;
-      color: #888780; margin-bottom: 8px;
+      color: #888780; margin-bottom: 5px;
     }
     .row {
       display: flex; align-items: center;
-      justify-content: space-between; margin-bottom: 6px;
+      justify-content: space-between; margin-bottom: 4px;
     }
     .row-label {
       display: flex; align-items: center;
@@ -97,7 +97,7 @@
     }
     input[type="number"]:focus { border-color: #3b6d11; }
     input[type="number"]:disabled { opacity: 0.4; }
-    .divider { height: 0.5px; background: #e8e8e4; margin: 10px 0; }
+    .divider { height: 0.5px; background: #e8e8e4; margin: 6px 0; }
     .disabled-overlay { opacity: 0.4; pointer-events: none; }
     .seg-ctrl {
       display: flex; border: 0.5px solid #d3d1c7;
@@ -117,7 +117,7 @@
     /* ── Høyre kolonne: fargefilter ── */
     .cak-filter-btn {
       display: flex; align-items: center; gap: 7px;
-      width: 100%; padding: 6px 8px; margin-bottom: 5px;
+      width: 100%; padding: 4px 8px; margin-bottom: 4px;
       border: 0.5px solid #d3d1c7; border-radius: 5px;
       background: #fafaf8; cursor: pointer;
       font-family: LatoWeb, Lato, -apple-system, sans-serif;
@@ -292,9 +292,8 @@
 
         <div class="section">
           <div class="section-title">Innmeldingsfilter</div>
-          <div style="font-size:11px; color:#5f5e5a; margin-bottom:8px; line-height:1.5;">
-            Vis elever med maks godkjente leksjoner.<br>
-            Teller etter terskel og rettemodus.
+          <div style="font-size:11px; color:#5f5e5a; margin-bottom:6px; line-height:1.4;">
+            Vis elever med maks godkjente leksjoner (terskel og rettemodus).
           </div>
           <div style="display:flex; align-items:center; gap:6px;">
             <input type="number" id="lesson-count-input" value="4" min="0" max="99"
@@ -305,26 +304,25 @@
           <div id="filter-lesson-feedback" style="font-size:11px; color:#3b6d11; margin-top:4px; min-height:14px;"></div>
         </div>
 
-        <div class="divider"></div>
-
-        <div class="section">
-          <div class="section-title">Kopieringslenker</div>
-          <div style="font-size:11px; color:#5f5e5a; margin-bottom:2px;">Hvilke oppgaver vises som lenker?</div>
-          <div class="seg-ctrl" id="copy-link-mode">
-            <button class="seg-btn" data-val="teacher">Kun lærer</button>
-            <button class="seg-btn active" data-val="both">Begge</button>
-            <button class="seg-btn" data-val="auto">Kun auto</button>
-          </div>
-          <div style="font-size:10px; color:#b4b2a9; margin-top:5px; line-height:1.5;">
-            Gjelder lenker i kopiering fra aktivitetskolonnen
-          </div>
-        </div>
-
       </div><!-- /col-right -->
+    </div>
+
+    <!-- ══ Full bredde: kopieringslenker ══ -->
+    <div class="divider" style="margin-top:8px;"></div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div style="flex:1;">
+        <div class="section-title">Kopieringslenker</div>
+        <div style="font-size:10px; color:#b4b2a9; line-height:1.4;">Gjelder lenker i kopiering fra aktivitetskolonnen</div>
+      </div>
+      <div class="seg-ctrl" id="copy-link-mode" style="width:auto; flex-shrink:0;">
+        <button class="seg-btn" data-val="teacher" style="padding:5px 10px;">Kun lærer</button>
+        <button class="seg-btn active" data-val="both" style="padding:5px 10px;">Begge</button>
+        <button class="seg-btn" data-val="auto" style="padding:5px 10px;">Kun auto</button>
+      </div>
     </div>
   </div>
 
-  <div class="footer">Canvas Aktivitetskolonne — 10.04.2026</div>
+  <div class="footer">Canvas Aktivitetskolonne — 23.04.2026</div>
 
   <script src="popup.js"></script>
 </body>

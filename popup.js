@@ -55,11 +55,14 @@ document.getElementById('toggle-highlight').addEventListener('change', (e) => {
 
 // ─── Seksjonsvelger ───────────────────────────────────────────────────────────
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-  if (!tabs[0] || !/\/courses\/\d+\/gradebook/.test(tabs[0].url || '')) return;
-  chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_SECTIONS' }, (resp) => {
-    if (chrome.runtime.lastError || !resp || !resp.sections.length) return;
+  if (!tabs[0]) return;
+  const m = (tabs[0].url || '').match(/\/courses\/(\d+)/);
+  if (!m) return;
+  chrome.storage.local.get(`cak_sections_${m[1]}`, result => {
+    const sections = result[`cak_sections_${m[1]}`] || [];
+    if (!sections.length) return;
     const sel = document.getElementById('section-select');
-    resp.sections.forEach(s => {
+    sections.forEach(s => {
       const opt = document.createElement('option');
       opt.value = s.id;
       opt.textContent = s.name;
