@@ -523,6 +523,11 @@
     Object.entries(byStudent).forEach(([sid, subs]) => {
       if (!studentData[sid]) studentData[sid] = {};
 
+      // Lagre Mangler-sett for bakgrunnsoppdatering av prikker
+      studentData[sid].subMissingSet = new Set(
+        subs.filter(s => s.missing === true).map(s => String(s.assignment_id))
+      );
+
       // Siste innlevering — graded_at og updated_at som fallback for pass_fail/NQ
       const submitted = subs.filter(s =>
         s.submitted_at || s.graded_at ||
@@ -672,7 +677,8 @@
             sub.workflow_state === 'complete' ||
             (sub.grade && sub.grade !== null)
           );
-          if (hasActivity) count++;
+          const isForcedMiss = !!(sub && sub.missing === true);
+          if (hasActivity && !isForcedMiss) count++;
         });
         if (count > 0) deliveredPerMod[modId] = count;
       });
@@ -1274,7 +1280,14 @@
         }
       }
       const pct = calcAvgViewPct(moduleCompletionCache[sid], studentData[sid]?.activeMods);
-      if (studentData[sid]) studentData[sid].avgViewPct = pct;
+      if (studentData[sid]) {
+        studentData[sid].avgViewPct = pct;
+        // Oppdater prikke-logikk med completion_requirement.completed per elev —
+        // samme signal som elevvisningen bruker
+        if (Array.isArray(moduleCompletionCache[sid])) {
+          recalcDotsFromModules(sid, moduleCompletionCache[sid]);
+        }
+      }
       updateViewBar(sid);
     }
   }
@@ -1318,10 +1331,58 @@
       `/api/v1/courses/${courseId}/modules?include[]=items&student_id=${sid}&per_page=100`
     );
     return modules.map(mod => {
-      const withReq  = (mod.items || []).filter(i => i.completion_requirement && i.completion_requirement.type === 'must_view');
-      const completed = withReq.filter(i => i.completion_requirement.completed).length;
-      return { id: String(mod.id), name: mod.name, total: withReq.length, completed };
+      const viewItems = (mod.items || []).filter(i => i.completion_requirement && i.completion_requirement.type === 'must_view');
+      const completed = viewItems.filter(i => i.completion_requirement.completed).length;
+      // Prikke-items: krav som ikke er must_view (levering, bidrag, poeng)
+      // must_mark_done er ikke i bruk på skolen og utelates
+      const dotItems  = (mod.items || []).filter(i =>
+        i.content_id &&
+        i.completion_requirement &&
+        i.completion_requirement.type !== 'must_view' &&
+        i.completion_requirement.type !== 'must_mark_done'
+      ).map(i => ({
+        contentId: String(i.content_id),
+        completed: !!i.completion_requirement.completed
+      }));
+      return { id: String(mod.id), name: mod.name, total: viewItems.length, completed, dotItems };
     });
+  }
+
+  // Oppdater deliveredPerMod/skippedPerMod med completion_requirement.completed per elev.
+  // Kjøres etter bakgrunnshentering av moduldata med student_id — gir samme signal som elevvisningen.
+  function recalcDotsFromModules(sid, modules) {
+    const missingSet = studentData[sid]?.subMissingSet || new Set();
+    const now = new Date();
+    // Bygg due_at-oppslagstabell fra moduleMapGlobal
+    const dueDateById = {};
+    Object.values(moduleMapGlobal).forEach(assignments => {
+      assignments.forEach(a => { dueDateById[String(a.id)] = a.due_at; });
+    });
+    const newDelivered = {};
+    const newSkipped   = {};
+    modules.forEach(mod => {
+      let delivered = 0, missing = 0;
+      const deferred = [];
+      (mod.dotItems || []).forEach(di => {
+        const isForcedMiss = missingSet.has(di.contentId);
+        const dueAt        = dueDateById[di.contentId];
+        const due          = dueAt ? new Date(dueAt) : null;
+        const isPastDue    = !!(due && due <= now);
+        if (di.completed && !isForcedMiss) {
+          delivered++;
+        } else if (isForcedMiss || isPastDue) {
+          missing++;
+        } else if (!dueAt) {
+          deferred.push(di);
+        }
+      });
+      if ((delivered > 0 || missing > 0) && deferred.length > 0) missing += deferred.length;
+      if (delivered > 0) newDelivered[mod.id] = delivered;
+      if (missing > 0)   newSkipped[mod.id]   = missing;
+    });
+    studentData[sid].deliveredPerMod = newDelivered;
+    studentData[sid].skippedPerMod   = newSkipped;
+    studentData[sid].hoppetOver      = Object.values(newSkipped).reduce((a, b) => a + b, 0);
   }
 
   function detectSemesterOffset() {
