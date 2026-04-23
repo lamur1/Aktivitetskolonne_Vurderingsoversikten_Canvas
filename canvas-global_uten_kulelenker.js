@@ -5,8 +5,11 @@
 //             Filtrer ALLTID på: completion_requirement.type === 'must_view'
 //             Aldri alle completion_requirement — da trekkes innleveringer inn.
 //
-// PRIKKER    = must_submit (innleveringer med dato) — vises under streken.
-//             Bruker missing-flagg og due_at fra Canvas API.
+// PRIKKER    = alle krav unntatt must_view: must_submit, must_contribute, min_score.
+//             Over streken: completion_requirement.completed = true (og ikke tvungen mangler).
+//             Under streken: frist passert, tvungen mangler (sub.missing = true),
+//             eller item uten frist i aktiv modul. Fremtidig frist → stiplet prikk.
+//             NB: must_mark_done er ikke i bruk på skolen og fanges ikke opp.
 //
 // FREMTIDSPRIKKER = futureCount minus allerede leverte — aldri isStarted-sjekk.
 //
@@ -1080,17 +1083,16 @@ document.body.appendChild(h5pScript);
       const mid = String(mod.id);
       (mod.items || []).forEach(item => {
         if (!item.content_id) return;
+        if (!item.completion_requirement) return; // ingen krav → ikke i spill
+        if (item.completion_requirement.type === 'must_view') return; // lærestoff → grønn bar
         const a = assignmentMap[String(item.content_id)];
-        // Frivillige assignments ekskluderes
         if (a && a.omit_from_final_grade) return;
-        // Frist: hent fra content_details direkte på item (fanger NQ og LTI-er),
-        // faller tilbake på assignment.due_at
+        contentModMap[String(item.content_id)] = mid;
+        modAssignCount[mid] = (modAssignCount[mid] || 0) + 1;
+        // Frist spores for Nå-linja — ikke krav for å telle som prikk
         const dueAt = (item.content_details && item.content_details.due_at)
                    || (a && a.due_at);
-        if (!dueAt) return; // ingen frist → ikke i spill
-        contentModMap[String(item.content_id)] = mid;
-        itemDueMap[String(item.content_id)]    = dueAt;
-        modAssignCount[mid] = (modAssignCount[mid] || 0) + 1;
+        if (dueAt) itemDueMap[String(item.content_id)] = dueAt;
       });
     });
 
@@ -1115,33 +1117,37 @@ document.body.appendChild(h5pScript);
 
     modulesRaw.forEach(mod => {
       const mid = String(mod.id);
-      // Bare items som har frist og ikke er frivillige
+      // Alle items med aktivt krav (ikke must_view) — uavhengig av om de har frist
       const items = (mod.items || []).filter(it =>
-        it.content_id && contentModMap[String(it.content_id)] === mid &&
-        !(it.completion_requirement && it.completion_requirement.type === 'must_view')
+        it.content_id && contentModMap[String(it.content_id)] === mid
       );
       let delivered = 0, missing = 0;
+      const deferred = []; // items uten frist, ikke fullført, ikke tvungen mangler
 
       items.forEach(item => {
-        const sub   = subMap[String(item.content_id)];
-        const dueAt = itemDueMap[String(item.content_id)];
-        const due   = dueAt ? new Date(dueAt) : null;
-        const hasActivity = sub && (
-          sub.submitted_at || sub.graded_at ||
-          sub.workflow_state === 'submitted' ||
-          sub.workflow_state === 'graded' ||
-          sub.workflow_state === 'complete' ||
-          (sub.grade && sub.grade !== null)
-        );
-        const isExcused = sub && sub.excused;
+        const sub          = subMap[String(item.content_id)];
+        const isExcused    = !!(sub && sub.excused);
         if (isExcused) return;
-        if (hasActivity) {
+        const dueAt        = itemDueMap[String(item.content_id)];
+        const due          = dueAt ? new Date(dueAt) : null;
+        const isPastDue    = !!(due && due <= now);
+        const isCompleted  = !!(item.completion_requirement && item.completion_requirement.completed);
+        const isForcedMiss = !!(sub && sub.missing === true);
+
+        if (isCompleted && !isForcedMiss) {
           delivered++;
-        } else {
-          const isMissing = (sub && sub.missing === true) || (due && due <= now);
-          if (isMissing) missing++;
+        } else if (isForcedMiss || isPastDue) {
+          missing++;
+        } else if (!dueAt) {
+          deferred.push(item); // ingen frist, ikke fullført: avgjøres av modulaktivitet
         }
+        // Fremtidig frist, ikke fullført, ikke tvungen mangler → fremtidig prikk (stiplet)
       });
+
+      // Er modulen aktiv? Trekk da inn items uten frist som ikke er fullført.
+      if ((delivered > 0 || missing > 0) && deferred.length > 0) {
+        missing += deferred.length;
+      }
 
       if (delivered > 0) deliveredPerMod[mid] = delivered;
       if (missing   > 0) skippedPerMod[mid]   = missing;

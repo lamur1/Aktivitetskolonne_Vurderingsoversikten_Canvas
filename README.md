@@ -2,7 +2,7 @@
 
 Chrome-utvidelse som legger til en diskret aktivitetskolonne i Canvas vurderingsoversikt. Læreren får et øyeblikksbilde av elevenes innlogging, innleveringsstatus, fremdrift og leseatferd — uten å forlate oversikten.
 
-**Versjon: 23.04.2026**
+**Versjon: 23.04.2026 kl. 13:00**
 
 ---
 
@@ -257,7 +257,7 @@ Håndterer den flytende fremdriftsbjelken øverst på siden og «Min fremdrift»
 
 ## Teknisk
 
-- Manifest V3 — versjon 23.04.2026
+- Manifest V3 — versjon 23.04.2026 kl. 13:00
 - Aktiveres kun på `*.instructure.com/courses/*/gradebook*`
 - Canvas REST API-endepunkter som brukes:
   - `enrollments` med `last_activity_at`
@@ -273,7 +273,9 @@ Håndterer den flytende fremdriftsbjelken øverst på siden og «Min fremdrift»
 - Canvas sin gradebook bruker virtuell scrolling (SlickGrid). DOM-strukturen kan variere mellom Canvas-versjoner
 - Utvidelsen er testet på `*.instructure.com`. Andre domener krever endring av `host_permissions` i `manifest.json`
 - Batteridiagrammet viser kun moduler som har Canvas-sider med fullføringskrav. Moduler som kun inneholder oppgaver/quizer uten sider kan mangle søyle selv om de har prikker
-- Prikkene baserer seg på `isMissing`-flagget fra Canvas. «Ikke fullført» som karaktersatt verdi (grade = incomplete) fanges ikke automatisk opp med prikk med mindre lærer også manuelt setter «Mangler»
+- Prikkene bruker `completion_requirement.completed` fra Canvas modulAPI som primærsignal. Lærer-satt «Mangler» (`sub.missing = true`) overstyrer og flytter prikken under streken selv om Canvas viser grønn hake i modulen. «Ikke fullført» som karakterverdi uten manuelt «Mangler»-flagg fanges ikke opp — dette er en kjent begrensning som krever rutine hos lærerne
+- `must_mark_done` (Merk som ferdig) er ikke i bruk på skolen og fanges ikke opp i prikkelogikken. Items med dette kravet vil ikke vises i batteridiagrammet
+- Aktivitetskolonnen (lærervisning) henter moduldata uten `student_id` og kan ikke bruke `completion_requirement.completed` per elev. Prikkelogikken der er fortsatt submissions-basert og fanger ikke opp `must_mark_done` eller items uten datofrist
 - **«Legg til elevoppgave» + «Vis»-krav** på en Canvas-side er trygt å bruke. Siden forblir en `Page` i API-et og teller normalt i de grønne barene — ikke som innlevering. Kombinasjonen gjør at siden vises i elevens gjøreliste og kalender uten å påvirke X av 15, prikker eller venter-vurdering. Testet og bekreftet 10.04.2026.
 
 ---

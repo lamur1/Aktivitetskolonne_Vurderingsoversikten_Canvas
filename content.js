@@ -561,9 +561,9 @@
             if (modeRelevant) lessons[modId].pastDueDenom++;
           }
 
-          // Felles mangler-sjekk: Canvas sin missing-status er autoritativ.
-          // Dekker både automatisk (frist passert) og manuelt (underkjent av lærer).
-          // En faktisk innlevering tar alltid prioritet over missing-flagget.
+          // Mangler-sjekk: sub.missing overstyrer alltid — også ved levering.
+          // Lærer som manuelt setter «Mangler» etter levering gir signal om at mer må gjøres.
+          // Canvas endrer automatisk fra «Mangler» til «Sen» ved levering etter frist.
           const isExcused = sub?.workflow_state === 'excused';
           const hasActivity = sub && (
             sub.submitted_at ||
@@ -574,7 +574,7 @@
             (sub.grade && sub.grade !== null)
           );
           const isMissing = !isExcused && (
-            (sub && sub.missing === true && !hasActivity) ||
+            (sub && sub.missing === true) ||
             (!sub && due <= now)           // defensiv fallback: ingen sub-objekt
           );
 
