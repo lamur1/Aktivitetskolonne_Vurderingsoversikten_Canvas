@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Canvas Aktivitetskolonne",
-  "version": "2026.4.23.1430",
+  "version": "2026.5.07.0828",
   "description": "Viser innloggings- og innleveringsaktivitet direkte i Canvas vurderingsoversikt.",
   "permissions": ["storage", "tabs", "clipboardWrite"],
   "host_permissions": ["*://*.instructure.com/*"],
@@ -25,5 +25,11 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["images/globalskolen-logo.png"],
+      "matches": ["*://*.instructure.com/*"]
+    }
+  ]
 }

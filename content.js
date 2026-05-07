@@ -720,7 +720,14 @@
     let next = url;
     while (next) {
       const resp = await fetch(next, { credentials: 'include' });
-      if (!resp.ok) break;
+      if (!resp.ok) {
+        if (resp.status === 403) {
+          const err = new Error('403 Forbidden');
+          err.status = 403;
+          throw err;
+        }
+        break;
+      }
       results = results.concat(await resp.json());
       const link = resp.headers.get('Link') || '';
       const m = link.match(/<([^>]+)>;\s*rel="next"/);
@@ -1277,6 +1284,7 @@
           moduleCompletionCache[sid] = await fetchModuleCompletion(sid);
         } catch (e) {
           moduleCompletionCache[sid] = false;
+          if (e.status === 403) break; // Canvas har blokkert student_id-tilgang — avbryt heile løkka
         }
       }
       const pct = calcAvgViewPct(moduleCompletionCache[sid], studentData[sid]?.activeMods);
