@@ -1870,36 +1870,27 @@
     const courseId = getCourseId();
 
     // ─── Tekst-linjer ──
+    const fornavn = name ? name.split(' ')[0] : '';
     const lines = [];
-    if (name) lines.push(name);
-    lines.push(loginDays === null
-      ? 'Ikke innlogget ennå'
-      : `Innlogget: ${loginDays} dag${loginDays === 1 ? '' : 'er'} siden`);
-    lines.push(subDays === null
-      ? 'Ikke levert oppgaver ennå'
-      : `Innlevert: ${subDays} dag${subDays === 1 ? '' : 'er'} siden`);
-
-    if (delta === undefined && !count) {
-      lines.push('Ingen frister i kurset');
-    } else if (delta === null) {
-      lines.push('Har frister — ikke levert');
-    } else if (totalt > 0) {
-      const terskel = cfg.lessonThreshold || 50;
-      const pending = venterVurdering || 0;
-      lines.push(`${godkjent} av 15 leksjoner fullført · Terskel: ${terskel}%`);
-      lines.push(`${pending} innlevering${pending === 1 ? '' : 'er'} venter vurdering`);
-      if (delta > 0) {
-        lines.push(`I forkant — levert i ${delta === 1 ? '1 leksjon' : delta + ' leksjoner'} med fremtidig frist`);
-      }
-      if (leksjonerEtter >= 2) {
-        lines.push(`På etterskudd — ${leksjonerEtter === 1 ? '1 leksjon' : leksjonerEtter + ' leksjoner'} etter skoleruta`);
-      }
-    } else {
-      lines.push('I rute — ingen leksjoner under terskel');
-    }
-    if (hoppetOver > 0) {
-      lines.push(`${hoppetOver} innlevering${hoppetOver === 1 ? '' : 'er'} med status Mangler`);
-    }
+    lines.push('📌 Globalskolen, viktig påminnelse - ønsker svar');
+    lines.push('');
+    lines.push('Hei!');
+    lines.push('');
+    lines.push('Håper dere har det bra.');
+    lines.push('');
+    lines.push(`${fornavn} har levert mange oppgaver dette semesteret – det er veldig bra!`);
+    lines.push('');
+    lines.push(`Jeg tar likevel kontakt nå fordi det er noen innleveringer som mangler. Det er viktig at ${fornavn} gjør en ekstra innsats nå for å komme i mål med semesteret.`);
+    lines.push('');
+    lines.push('Nederst finner dere direktelenker til de oppgavene som må leveres. Oversikten over lærestoff og alle oppgaver er ellers samlet under «Moduler/Leksjoner» i menyen.');
+    lines.push('');
+    lines.push('Jeg ber om at dere svarer på denne meldingen slik at jeg vet at den er mottatt og lest. Det er viktig at vi har en dialog om dette fremover. Hvis tiden er for knapp, kan vi gjøre avtale om andre innleveringsfrister.');
+    lines.push('');
+    lines.push('Ha en fin uke videre!');
+    lines.push('');
+    lines.push('Med vennlig hilsen');
+    lines.push('');
+    lines.push('Globalskolen');
 
     // ─── Lenker til manglende oppgaver ──
     const linkMode = cfg.copyLinkMode || 'both';
