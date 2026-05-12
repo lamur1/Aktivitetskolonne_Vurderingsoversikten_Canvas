@@ -1934,28 +1934,26 @@
     const plainText = lines.join('\n');
 
     // ─── HTML-versjon ──
-    const htmlLines = lines.slice(0, name ? 1 : 0).concat(
-      lines.slice(name ? 1 : 0, -linkLines.length - (linkLines.length > 0 ? 2 : 0))
-    );
-    let htmlBody = `<p style="font-family:sans-serif;font-size:13px;line-height:1.7;margin:0 0 8px">`;
-    if (name) htmlBody += `<strong>${name}</strong><br>`;
-    // Slå sammen innlogging, innlevering, fremdrift til en blokk
-    const infoLines = [
-      loginDays === null ? 'Ikke innlogget ennå' : `Innlogget: ${loginDays} dag${loginDays === 1 ? '' : 'er'} siden`,
-      subDays === null ? 'Ikke levert oppgaver ennå' : `Innlevert: ${subDays} dag${subDays === 1 ? '' : 'er'} siden`,
-    ];
-    if (delta === undefined && !count) { infoLines.push('Ingen frister i kurset'); }
-    else if (delta === null) { infoLines.push('Har frister — ikke levert'); }
-    else if (totalt > 0) {
-      const terskel = cfg.lessonThreshold || 50;
-      const pending = venterVurdering || 0;
-      infoLines.push(`${godkjent} av 15 leksjoner fullført · Terskel: ${terskel}%`);
-      infoLines.push(`${pending} innlevering${pending === 1 ? '' : 'er'} venter vurdering`);
-      if (delta > 0) infoLines.push(`I forkant — levert i ${delta === 1 ? '1 leksjon' : delta + ' leksjoner'} med fremtidig frist`);
-      if (leksjonerEtter >= 2) infoLines.push(`På etterskudd — ${leksjonerEtter === 1 ? '1 leksjon' : leksjonerEtter + ' leksjoner'} etter skoleruta`);
-    } else { infoLines.push('I rute — ingen leksjoner under terskel'); }
-    if (hoppetOver > 0) infoLines.push(`${hoppetOver} innlevering${hoppetOver === 1 ? '' : 'er'} med status Mangler`);
-    htmlBody += infoLines.join('<br>') + '</p>';
+    // Bygges fra lines-arrayen (samme kilde som plainText) for å sikre at
+    // intro-teksten er identisk enten man limer inn i Canvas, e-post eller Office 365.
+    // Lenker legges til som klikkbar <ul> fra linkHtmlItems.
+    const introLineCount = lines.length - 2 - (linkLines.length > 0 ? 2 + linkLines.length : 0);
+    const introLines = lines.slice(0, introLineCount);
+    let htmlBody = '';
+    let currentPara = [];
+    for (const line of introLines) {
+      if (line === '') {
+        if (currentPara.length > 0) {
+          htmlBody += `<p style="font-family:sans-serif;font-size:13px;font-weight:normal;line-height:1.6;margin:0 0 10px">${currentPara.join('<br>')}</p>`;
+          currentPara = [];
+        }
+      } else {
+        currentPara.push(line);
+      }
+    }
+    if (currentPara.length > 0) {
+      htmlBody += `<p style="font-family:sans-serif;font-size:13px;font-weight:normal;line-height:1.6;margin:0 0 10px">${currentPara.join('<br>')}</p>`;
+    }
 
     if (linkHtmlItems.length > 0) {
       htmlBody += `<p style="font-family:sans-serif;font-size:13px;margin:8px 0 4px"><strong>Innleveringsoppgaver med passert frist:</strong></p>`;
