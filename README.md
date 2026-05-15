@@ -2,7 +2,7 @@
 
 Chrome-utvidelse som legger til en diskret aktivitetskolonne i Canvas vurderingsoversikt. Læreren får et øyeblikksbilde av elevenes innlogging, innleveringsstatus, fremdrift og leseatferd — uten å forlate oversikten.
 
-**Versjon: 23.04.2026 kl. 14:30**
+**Versjon: 15.05.2026**
 
 ---
 
@@ -142,15 +142,51 @@ En erfaren lærer kan kombinere disse og lese hele elevens situasjon på sekunde
 
 ---
 
+## «Min fremdrift»-modal — venstre kolonne
+
+Venstre kolonne viser en motivasjonstekst tilpasset elevens situasjon. To lag med tekst:
+
+### Konteksttekst (under stat-boksene)
+
+| Tekst | Trigger |
+|-------|---------|
+| *Grafikken viser om lærestoff og oppgaver er glemt eller hoppet over.* | På etterskudd, eller ingen godkjente leksjoner ennå |
+| *Du er i forkant — bra jobbet!* | Minst én leksjon foran skjema |
+| *Du følger planen* | På skjema, minst én leksjon godkjent |
+
+### Emoji-sirkel med tekst
+
+| Emoji | Tekst | Trigger |
+|-------|-------|---------|
+| 🏆 | Strålende! | Alle leksjoner i kurset godkjent |
+| ⭐ | Du gjør det bra! | I forkant av skjema |
+| 👍 | Fortsett sånn! | På skjema, minst én leksjon godkjent |
+| 🌱 | Ikke gi opp! | På etterskudd |
+| 🤝 | Vi heier på deg! | Ingen godkjente leksjoner ennå, ikke på etterskudd |
+
+---
+
 ## Kopiering og nedlasting
 
 Når du holder musen over en celle vises to ikoner:
 
-**Kopieringsikon (øverst)** — kopierer elevens status til utklippstavlen med innleveringslenker.
+**Kopieringsikon (øverst)** — kopierer en ferdig skrevet purremelding til utklippstavlen med elevens navn, innleveringslenker og frister.
+
+Meldingen er adressert til eleven og foresatte, beskriver hvilke innleveringer som har status «Mangler» i Canvas og ber om svar. Hvilke oppgavetyper som tas med styres av innstillingen **Kopieringslenker** i popup-panelet (Alle / NQ / Unntatt NQ).
 
 **Nedlastingsikon (nederst)** — laster ned et PNG-elevkort med navn, status og batteridiagram.
 
-Hvilke oppgaver som tas med styres av innstillingen **Kopieringslenker** i popup-panelet.
+---
+
+## New Quizzes (NQ)
+
+New Quizzes er Canvas sin nyere quiz-motor og håndteres spesielt av utvidelsen.
+
+**Identifisering:** NQ-oppgaver gjenkjennes via tilknyttet verktøy-URL (`quiz-lti`). Klassiske quizer brukes ikke på Globalskolen.
+
+**Godkjenningslogikk:** NQ behandles likt andre innleveringer. Datofrist og «Mangler»-status styrer om en NQ vises som manglende, akkurat som for vanlige innleveringer.
+
+**Kopieringslenker:** Du kan velge å inkludere kun NQ, kun andre innleveringer, eller alle i purremeldingen.
 
 ---
 
@@ -160,23 +196,21 @@ Hvilke oppgaver som tas med styres av innstillingen **Kopieringslenker** i popup
 
 Tallet 15 er fast og representerer det totale antallet leksjoner i kurset. Det er knyttet til statsstøttekravet om at elever skal ha fullført minst 12 av 15 leksjoner.
 
-En leksjon teller som **Fullført** når tilstrekkelig andel av innleveringene med passert frist er **karaktersatt som godkjent** av lærer eller autorettingssystem — ikke bare levert. Unntak: leksjoner der eleven har levert i forkant (fremtidig frist) teller som fullført siden karaktersetting ikke er forventet ennå.
+En leksjon teller som **Fullført** når tilstrekkelig andel av innleveringene med passert frist er **karaktersatt som godkjent** av lærer — ikke bare levert. Unntak: leksjoner der eleven har levert i forkant (fremtidig frist) teller som fullført siden karaktersetting ikke er forventet ennå.
 
 Gapet mellom det eleven har levert og det som er karaktersatt vises i linjen **«N innleveringer venter vurdering»**. En lærer kan altså kombinere «X av 15» og «venter vurdering» for å forstå om lav score skyldes manglende levering eller manglende retting.
 
 ### Terskelprosent
 
-Terskelen styrer hvor mange innleveringer i en leksjon som må være karaktersatt som Fullført for at leksjonen teller. Standard er 100 % — alle innleveringer med passert frist må være godkjent. Kan justeres i popup-panelet.
+Terskelen styrer hvor mange innleveringer i en leksjon som må være karaktersatt som Fullført for at leksjonen teller. Standard er 50 % — justerbar i popup-panelet.
 
 ### Hva teller som «godkjent»?
 
 | Valg | Hva som teller |
 |------|----------------|
-| Lærergodkjent (standard) | Kun oppgaver lærer har karaktersatt manuelt |
-| Automatisk rettet | Kun oppgaver Canvas har rettet automatisk (quizer o.l.) |
-| Begge | Alt som er registrert som karaktersatt |
-
-Dette gjør utvidelsen tilpasningsdyktig for fag med ulike vurderingsformer.
+| Alle (standard) | NQ teller ved innlevering, andre innleveringer ved lærergradering |
+| NQ | Kun New Quizzes, og kun ved innlevering |
+| Unntatt NQ | Kun vanlige innleveringer og diskusjoner, kun ved lærergradering |
 
 ---
 
@@ -212,9 +246,10 @@ Klikk utvidelsesikonet i Chrome for å åpne innstillingspanelet.
 | ¾ fylt ring | ≤ 7 dager | Grense for relativt nylig innlogging |
 | Levert nylig | ≤ 7 dager | Grense for grønn firkant |
 | En stund siden | ≤ 14 dager | Grense for grå firkant |
-| Leksjon godkjent når | ≥ 100% | Terskel for leksjonsberegning |
-| Godkjenningsgrunnlag | Kun lærer | Hva som teller som godkjent |
+| Leksjon godkjent når | ≥ 50% | Terskel for leksjonsberegning |
+| Godkjenningsgrunnlag | Alle | Hva som teller som godkjent (Alle / NQ / Unntatt NQ) |
 | Fargemerking | Av | Trafikklys-farge på Canvas-rader |
+| Kopieringslenker | Alle | Hvilke oppgavetyper som tas med i purremelding |
 
 ---
 
@@ -229,41 +264,34 @@ Elevdata forlater aldri Canvas sine egne servere.
 
 ---
 
-## Canvas-skript for elever — fire filer
+## Canvas-skript for elever
 
-Det følger med fire JavaScript-filer som limes inn i Canvas sitt globale JavaScript-felt (Admin → Tema → JS). Velg én fra hver gruppe:
+Det følger med én aktiv JavaScript-fil som lastes opp i Canvas sitt globale JavaScript-felt (Admin → Tema → JS):
 
-### Gruppe 1 — Tooltip og modulside (`canvas-global-…`)
+**`canvas-global_med_kulelenker_MED_PURREVINDU.js`**
 
-Håndterer tooltip på gjøremålslenker, automatisk kollaps/ekspander av leksjoner på modulside, premieikon ved fullføring og diplom ved kursslutt.
+Denne filen inneholder:
 
-| Fil | Forskjell |
-|-----|-----------|
-| `canvas-global_med_kulelenker.js` | Prikkene i batteridiagrammet er **klikkbare lenker** til den aktuelle oppgaven |
-| `canvas-global_uten_kulelenker.js` | Prikkene er **ikke klikkbare** — kun visuelle indikatorer |
+- **Kuleramme** — horisontal navigasjonsmeny øverst på leksjonssider. Viser alle sider og innleveringer i leksjonen som kuler på en tråd. Farger og badge-ikoner viser fremdrift i sanntid: grønn ✓ = fullført, oransje = levert/venter vurdering, rød = mangler, grå = ikke gjort ennå.
+- **Min fremdrift** — flytende knapp og modal med batteridiagram og statistikk for eleven
+- **Purrevindu** — grønt banner til elever med uleverte oppgaver med passert frist
+- **Tooltip på gjøremålslenker** — klikkvennlige lenker i Canvas sin gjøreliste
+- **Premieikon og diplom** — vises ved fullføring av leksjon og kurs
 
-### Gruppe 2 — Leksjonsfremdrift og Min fremdrift (`canvas-leksjonsfremdrift-…`)
-
-Håndterer den flytende fremdriftsbjelken øverst på siden og «Min fremdrift»-modalen med batteridiagram og statistikk.
-
-| Fil | Forskjell |
-|-----|-----------|
-| `canvas-leksjonsfremdrift-og-min-fremdrift_med_kulelenker.js` | Prikkene i batteridiagrammet er **klikkbare lenker** til den aktuelle oppgaven |
-| `canvas-leksjonsfremdrift-og-min-fremdrift_uten_kulelenker.js` | Prikkene er **ikke klikkbare** — kun visuelle indikatorer |
-
-> Velg konsekvent — bruk enten begge `med_kulelenker`-filene eller begge `uten_kulelenker`-filene.
+> Andre `canvas-*.js`-filer i mappen er eldre varianter som ikke lenger er i bruk.
 
 ---
 
 ## Teknisk
 
-- Manifest V3 — versjon 23.04.2026 kl. 14:30
+- Manifest V3 — versjon 15.05.2026
 - Aktiveres kun på `*.instructure.com/courses/*/gradebook*`
 - Canvas REST API-endepunkter som brukes:
   - `enrollments` med `last_activity_at`
-  - `students/submissions` med `missing`-flagg, `workflow_state`, `grader_id`, `submitted_at`, `graded_at`
-  - `assignments` med `due_at`, `grading_type`, `submission_types`
+  - `students/submissions` med `missing`-flagg, `workflow_state`, `grader_id`, `submitted_at`, `graded_at`, `read_state`, `submission_comments`
+  - `assignments` med `due_at`, `grading_type`, `submission_types`, `external_tool_tag_attributes`, `html_url`, `discussion_topic.id`
   - `modules` med `items` og `student_id` — for leksjonsgruppering og fullføringsstatus
+  - `users/self` — for elevens profilbilde (`avatar_url`)
 - Data caches i `chrome.storage.local` med 1-times utløp per kurs
 
 ---
@@ -274,6 +302,7 @@ Håndterer den flytende fremdriftsbjelken øverst på siden og «Min fremdrift»
 - Utvidelsen er testet på `*.instructure.com`. Andre domener krever endring av `host_permissions` i `manifest.json`
 - Batteridiagrammet viser kun moduler som har Canvas-sider med fullføringskrav. Moduler som kun inneholder oppgaver/quizer uten sider kan mangle søyle selv om de har prikker
 - Prikkene bruker `completion_requirement.completed` fra Canvas modulAPI som primærsignal. Lærer-satt «Mangler» (`sub.missing = true`) overstyrer og flytter prikken under streken selv om Canvas viser grønn hake i modulen. «Ikke fullført» som karakterverdi uten manuelt «Mangler»-flagg fanges ikke opp — dette er en kjent begrensning som krever rutine hos lærerne
+- **Diskusjonsoppgaver** (`must_contribute`) vises korrekt i «Min fremdrift»-modalen. Canvas bruker `discussion_topic_id` som `content_id` i moduler, mens submissions bruker `assignment_id` — utvidelsen oversetter disse automatisk. Siden `submitted_at` alltid er `null` for diskusjoner, brukes `graded_at` som dato når lærer har satt karakter. Diskusjoner uten karakter bruker kommentardato som fallback
 - `must_mark_done` (Merk som ferdig) er ikke i bruk på skolen og fanges ikke opp i prikkelogikken. Items med dette kravet vil ikke vises i batteridiagrammet
 - Aktivitetskolonnen (lærervisning) henter moduldata uten `student_id` og kan ikke bruke `completion_requirement.completed` per elev. Prikkelogikken der er fortsatt submissions-basert og fanger ikke opp `must_mark_done` eller items uten datofrist
 - **«Legg til elevoppgave» + «Vis»-krav** på en Canvas-side er trygt å bruke. Siden forblir en `Page` i API-et og teller normalt i de grønne barene — ikke som innlevering. Kombinasjonen gjør at siden vises i elevens gjøreliste og kalender uten å påvirke X av 15, prikker eller venter-vurdering. Testet og bekreftet 10.04.2026.
