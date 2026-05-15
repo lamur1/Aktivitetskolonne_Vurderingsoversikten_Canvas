@@ -498,26 +498,31 @@
     // Bygg oppslagstabell: assignmentId → 'auto' | 'teacher'
     // pass_fail/complete_incomplete er alltid lærergradet — grader_id er upålitelig
     // (Canvas bruker grader_id=-15 ved karaktersetting via karakterboken)
+    // NQ-settet bygges først, uavhengig av grader_id-logikken.
+    // NQ identifiseres via external_tool_tag_attributes.url som inneholder 'quiz-lti'.
+    // Klassisk quiz (online_quiz) brukes ikke på Globalskolen og ignoreres.
+    const nqIds = new Set();
+    Object.values(assignmentById).forEach(a => {
+      if ((a.submission_types || []).includes('external_tool') &&
+          a.external_tool_tag_attributes?.url?.includes('quiz-lti')) {
+        nqIds.add(String(a.id));
+      }
+    });
+
     const assignmentTypeMap = {};
     Object.values(assignmentById).forEach(a => {
-      if (a.grading_type === 'pass_fail' || a.grading_type === 'complete_incomplete') {
-        assignmentTypeMap[String(a.id)] = 'teacher';
+      const aid = String(a.id);
+      if (nqIds.has(aid)) {
+        assignmentTypeMap[aid] = 'nq';
+      } else if (a.grading_type === 'pass_fail' || a.grading_type === 'complete_incomplete') {
+        assignmentTypeMap[aid] = 'teacher';
       }
     });
     submissions.forEach(s => {
       const aid = String(s.assignment_id);
-      if (assignmentTypeMap[aid]) return;
+      if (assignmentTypeMap[aid]) return; // NQ og pass_fail allerede satt
       if (s.grader_id == null) return;
       assignmentTypeMap[aid] = Number(s.grader_id) < 0 ? 'auto' : 'teacher';
-    });
-    Object.values(moduleMapGlobal).forEach(modAssignments => {
-      modAssignments.forEach(asgn => {
-        const aid = String(asgn.id);
-        if (!assignmentTypeMap[aid]) {
-          assignmentTypeMap[aid] = (asgn.submission_types || []).includes('external_tool')
-            ? 'auto' : 'teacher';
-        }
-      });
     });
 
     Object.entries(byStudent).forEach(([sid, subs]) => {
@@ -561,7 +566,7 @@
             lessons[modId].pastDue++;
             const aType = assignmentTypeMap[String(asgn.id)];
             const modeRelevant = cfg.gradingMode === 'both'   ? true
-                               : cfg.gradingMode === 'auto'   ? aType === 'auto'
+                               : cfg.gradingMode === 'auto'   ? aType === 'nq'
                                :                                aType === 'teacher';
             if (modeRelevant) lessons[modId].pastDueDenom++;
           }
@@ -592,17 +597,17 @@
               sub.workflow_state === 'complete' ||
               sub.graded_at
             );
-            const graderId = sub.grader_id;
-            // pass_fail/complete_incomplete kan kun rettes av lærer — grader_id er upålitelig
-            const isPassFail = asgn.grading_type === 'pass_fail' || asgn.grading_type === 'complete_incomplete';
-            const isFullfort = isGraded && (
-              isPassFail        ? cfg.gradingMode !== 'auto' :
-              cfg.gradingMode === 'both'  ? true :
-              cfg.gradingMode === 'auto'  ? Number(graderId) < 0 :
-              /* teacher (default) */       Number(graderId) > 0
+            // NQ-basert godkjenningslogikk:
+            // NQ er fullført når den er levert (isDelivered) — auto-retting eller essay,
+            // lærer underkjenner ved å sette «Mangler» manuelt.
+            // Ikke-NQ (innleveringer, diskusjoner) er fullført når lærer har vurdert (isGraded).
+            // gradingMode filtrerer hvilke oppgavetyper som teller, ikke hva som er fullført.
+            const isNQ = assignmentTypeMap[String(asgn.id)] === 'nq';
+            const isFullfort = (
+              cfg.gradingMode === 'both' ? (isNQ ? isDelivered : isGraded) :
+              cfg.gradingMode === 'auto' ? (isNQ && isDelivered) :
+              /* unntatt NQ */             (!isNQ && isGraded)
             );
-            // CAK-DEBUG: fjern etter feilsøking
-            console.log('[CAK-asgn]', asgn.name, 'grading_type:', asgn.grading_type, 'grader_id:', graderId, 'isPassFail:', isPassFail, 'isGraded:', isGraded, 'isFullfort:', isFullfort, 'due<=now:', due<=now);
             if (isFullfort) lessons[modId].fullfort++;
             if (isFullfort && due <= now) lessons[modId].fullfortPastDue++;
             if (sub.workflow_state === 'submitted' || sub.workflow_state === 'pending_review') lessons[modId].venter++;
@@ -617,7 +622,7 @@
               id: String(asgn.id),
               name: asgn.name,
               dueAt: asgn.due_at,
-              isAutoGraded: !!(asgn.submission_types || []).includes('online_quiz')
+              isNQ: assignmentTypeMap[String(asgn.id)] === 'nq'
             });
           }
         });
@@ -1464,7 +1469,7 @@
       const isStarted = mod.total > 0 && mod.completed > 0;
 
       // Leksjonsnummer — rotert loddrett i labelH-sonen over søylen
-      bars += `<text transform="rotate(-45,${cx},${labelH / 2})" x="${cx}" y="${labelH / 2}" font-size="7" fill="#888780" text-anchor="middle" dominant-baseline="central">${num}</text>`;
+      bars += `<text transform="rotate(-45,${cx},${labelH / 2})" x="${cx}" y="${labelH / 2}" font-size="9" fill="#444441" text-anchor="middle" dominant-baseline="central">${num}</text>`;
 
       if (isStarted) {
         // Grønn bar vokser oppover — intensitet øker mot 100%
@@ -1553,8 +1558,11 @@
       if (totalt > 0) {
         const pending = venterVurdering || 0;
         const pendingWord = pending === 1 ? 'innlevering' : 'innleveringer';
+        const pendingDot = pending > 0
+          ? `<svg width="9" height="9" viewBox="0 0 9 9" style="vertical-align:middle;margin-right:3px"><circle cx="4.5" cy="4.5" r="3.5" fill="white" stroke="#e65100" stroke-width="1.8"/></svg>`
+          : '';
         d = `${godkjent} av 15 leksjoner Fullført · Terskel: ${terskel}%` +
-          `<br>${pending} ${pendingWord} venter vurdering`;
+          `<br>${pendingDot}${pending} ${pendingWord} venter vurdering`;
         if (delta > 0) {
           const leks = delta === 1 ? '1 leksjon' : `${delta} leksjoner`;
           d += `<br>I forkant — levert i ${leks} med fremtidig frist`;
@@ -1728,7 +1736,7 @@
       Object.entries(missingByMod).forEach(([modId, asgns]) => {
         const modName = moduleNameMapGlobal[modId] || `Leksjon ${modId}`;
         asgns.forEach(a => {
-          const include = linkMode==='both' ? true : linkMode==='auto' ? a.isAutoGraded : !a.isAutoGraded;
+          const include = linkMode==='both' ? true : linkMode==='auto' ? a.isNQ : !a.isNQ;
           if (!include) return;
           const due = a.dueAt ? new Date(a.dueAt).toLocaleDateString('no-NO') : '';
           linkTextLines.push({ t: `${modName}: ${a.name}${due ? ' ('+due+')' : ''}`, col:'#5f5e5a', size:10 });
@@ -1874,17 +1882,15 @@
     const lines = [];
     lines.push('📌 Globalskolen, viktig påminnelse - ønsker svar');
     lines.push('');
-    lines.push('Hei!');
+    lines.push(`Hei, ${fornavn} og foresatte,`);
     lines.push('');
     lines.push('Håper dere har det bra.');
     lines.push('');
-    lines.push(`${fornavn} har levert mange oppgaver dette semesteret – det er veldig bra!`);
+    lines.push(`Nederst finner dere en oversikt som viser innleveringer som ikke er levert enda – de har status "Mangler" i Canvas. Det er viktig at ${fornavn} gjør en ekstra innsats nå med å jobbe med disse oppgavene/leksjonene for å komme i mål med semesteret.`);
     lines.push('');
-    lines.push(`Jeg tar likevel kontakt nå fordi det er noen innleveringer som mangler. Det er viktig at ${fornavn} gjør en ekstra innsats nå for å komme i mål med semesteret.`);
+    lines.push('Oversikten over lærestoff og alle oppgaver er ellers samlet under «Moduler/Leksjoner» i menyen.');
     lines.push('');
-    lines.push('Nederst finner dere direktelenker til de oppgavene som må leveres. Oversikten over lærestoff og alle oppgaver er ellers samlet under «Moduler/Leksjoner» i menyen.');
-    lines.push('');
-    lines.push('Jeg ber om at dere svarer på denne meldingen slik at jeg vet at den er mottatt og lest. Det er viktig at vi har en dialog om dette fremover. Hvis tiden er for knapp, kan vi gjøre avtale om andre innleveringsfrister.');
+    lines.push('Jeg ønsker svar på denne meldingen slik at jeg vet at den er mottatt og lest. Hvis tiden er for knapp, kan vi gjøre avtale om andre innleveringsfrister.');
     lines.push('');
     lines.push('Ha en fin uke videre!');
     lines.push('');
@@ -1904,8 +1910,8 @@
         asgns.forEach(a => {
           const include = linkMode === 'both'
             ? true
-            : linkMode === 'auto'   ? a.isAutoGraded
-            : /* teacher */           !a.isAutoGraded;
+            : linkMode === 'auto'   ? a.isNQ
+            : /* unntatt NQ */        !a.isNQ;
           if (!include) return;
           const url    = `${location.origin}/courses/${courseId}/assignments/${a.id}`;
           const due    = a.dueAt ? new Date(a.dueAt).toLocaleDateString('no-NO') : '';
